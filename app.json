@@ -2,7 +2,7 @@
   "expo": {
     "name": "Nessna Up",
     "slug": "nessna-up",
-    "version": "1.1.8",
+    "version": "1.1.9",
     "orientation": "portrait",
     "icon": "./assets/images/appicon.png",
     "scheme": "attijariup",
@@ -37,7 +37,7 @@
       "entitlements": {
         "com.apple.developer.networking.wifi-info": true
       },
-      "buildNumber": "1.1.8"
+      "buildNumber": "1.1.9"
     },
     "android": {
       "softwareKeyboardLayoutMode": "resize",
@@ -69,7 +69,7 @@
       },
       "package": "tn.attijariup.plus",
       "googleServicesFile": "./firebase/google-services.json",
-      "versionCode": 72,
+      "versionCode": 73,
       "launchMode": "singleTask",
       "permissions": [
         "USE_BIOMETRIC",
