@@ -115,7 +115,6 @@ jobs:
             firebase/ \
             .github/ \
             app.json \
-            package.json \
             credentials.json \
             eas.json \
             2>/dev/null || true
@@ -131,7 +130,6 @@ jobs:
           firebase/
           .github/
           app.json
-          package.json
           credentials.json
           eas.json
           GITIGNORE
@@ -170,7 +168,7 @@ jobs:
           echo "| Source | \`${{ github.ref_name }}\` (GitHub / NessnaUp) |" >> $GITHUB_STEP_SUMMARY
           echo "| Target | \`${{ env.TARGET_BRANCH }}\` (GitLab / AttijariUp) |" >> $GITHUB_STEP_SUMMARY
           echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Excluded | android/, ios/, firebase/, .github/, app.json, package.json, credentials.json, eas.json |" >> $GITHUB_STEP_SUMMARY
+          echo "| Excluded | android/, ios/, firebase/, .github/, app.json, credentials.json, eas.json |" >> $GITHUB_STEP_SUMMARY
 
       # ── Cleanup ─────────────────────────────────────────
       - name: Cleanup

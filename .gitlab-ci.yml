@@ -50,7 +50,7 @@ variables:
   image: reactnativecommunity/react-native-android:latest
   before_script:
     # ── JS dependencies ──
-    - npm install --legacy-peer-deps
+    - npm install --legacy-peer-deps --production=false
 
     # ── Production env file ──
     - echo "$ENV_PRODUCTION_FILE" | base64 -d > .env.production
@@ -96,7 +96,7 @@ bump-version:
     - if: $CI_PIPELINE_SOURCE == "web"
       when: manual
   script:
-    - npm install --legacy-peer-deps
+    - npm install --legacy-peer-deps --production=false
     - |
       git config user.name "gitlab-ci[bot]"
       git config user.email "gitlab-ci[bot]@noreply.gitlab.com"
