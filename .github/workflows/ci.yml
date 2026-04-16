@@ -1,0 +1,57 @@
+name: CI — lint & typecheck
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [feat/cicd]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Lint & Typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Write dummy env file (for config resolution)
+        run: |
+          cat > .env.development << 'EOF'
+          ENV_API_BASE_URL=https://placeholder.local
+          ENV_AUTH_STORAGE_KEY=placeholder
+          ENV_BIOMETRIC_ENABLED_KEY=placeholder
+          ENV_SECURE_USERNAME_KEY=placeholder
+          ENV_SECURE_PASSWORD_KEY=placeholder
+          ENV_SECURE_PASSCODE_KEY=placeholder
+          ENV_SECURE_PENDING_USERNAME_KEY=placeholder
+          ENV_SECURE_PENDING_PASSWORD_KEY=placeholder
+          ENV_PASSCODE_SALT_KEY=placeholder
+          ENV_PASSCODE_HASH_KEY=placeholder
+          ENV_BUILD_MARKER=ci
+          ENV_SECURE_ACCESS_TOKEN_KEY=placeholder
+          ENV_SECURE_REFRESH_TOKEN_KEY=placeholder
+          ENV_BACKGROUND_TIMESTAMP_KEY=placeholder
+          ENV_BACKGROUND_LOGOUT_TIMEOUT_MS=300000
+          ENV_ROUTER_ORIGIN=https://placeholder.local
+          ENV_EAS_PROJECT_ID=placeholder
+          EOF
+          cp .env.development .env
+
+      - name: Lint
+        run: npx expo lint
+
+      - name: Typecheck
+        run: npx tsc --noEmit

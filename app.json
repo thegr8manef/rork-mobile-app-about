@@ -1,0 +1,159 @@
+{
+  "expo": {
+    "name": "Nessna Up",
+    "slug": "nessna-up",
+    "version": "1.1.4",
+    "orientation": "portrait",
+    "icon": "./assets/images/appicon.png",
+    "scheme": "attijariup",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "tn.attijariup.plus",
+      "googleServicesFile": "./firebase/GoogleService-Info.plist",
+      "usesIcloudStorage": true,
+      "requireFullScreen": true,
+      "UIContentSizeCategoryAdjustments": false,
+      "appStoreUrl": "https://apps.apple.com/app/6759223530",
+      "associatedDomains": [
+        "applinks:attijariup.com.tn",
+        "applinks:www.attijariup.com.tn"
+      ],
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "Allow $(PRODUCT_NAME) to use Face ID.",
+        "NSPhotoLibraryUsageDescription": "Allow $(PRODUCT_NAME) to access your photos.",
+        "NSPhotoLibraryAddUsageDescription": "Allow $(PRODUCT_NAME) to save photos.",
+        "UIBackgroundModes": ["remote-notification"],
+        "LSApplicationQueriesSchemes": ["itms-apps"]
+      },
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "entitlements": {
+        "com.apple.developer.networking.wifi-info": true
+      },
+      "buildNumber": "1.1.4"
+    },
+    "android": {
+      "softwareKeyboardLayoutMode": "resize",
+      "allowFontScaling": false,
+      "playStoreUrl": "https://play.google.com/store/apps/details?id=tn.attijariup.plus",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "category": ["BROWSABLE", "DEFAULT"],
+          "data": [
+            {
+              "scheme": "https",
+              "host": "www.attijariup.com.tn"
+            },
+            {
+              "scheme": "https",
+              "host": "attijariup.com.tn"
+            }
+          ]
+        }
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/appicon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "tn.attijariup.plus",
+      "googleServicesFile": "./firebase/google-services.json",
+      "versionCode": 68,
+      "launchMode": "singleTask",
+      "permissions": [
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT",
+        "android.permission.VIBRATE",
+        "INTERNET",
+        "WAKE_LOCK"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/images/appicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "./scripts/withPrebuildDiff",
+      [
+        "expo-router",
+        {
+          "origin": "https://www.attijariup.com.tn"
+        }
+      ],
+      [
+        "expo-document-picker",
+        {
+          "iCloudContainerEnvironment": "Production"
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow this app to use Face ID."
+        }
+      ],
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": true,
+          "faceIDPermission": "Allow this app to access biometric authentication."
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FFFFFF",
+          "image": "./assets/images/newlogo.png",
+          "dark": {
+            "image": "./assets/images/newlogodark.png",
+            "backgroundColor": "#1C1C1E "
+          },
+          "imageWidth": 180
+        }
+      ],
+      [
+        "expo-screen-orientation",
+        {
+          "initialOrientation": "PORTRAIT_UP"
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static"
+          }
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "defaultChannel": "default",
+          "icon": "./assets/images/notification-icon.png",
+          "color": "#E87225",
+          "channels": [
+            {
+              "name": "Downloads",
+              "id": "downloads",
+              "importance": 3,
+              "sound": null
+            }
+          ]
+        }
+      ],
+      "@react-native-firebase/app",
+      "@react-native-firebase/messaging",
+      "expo-font",
+      "expo-web-browser",
+      "expo-localization"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "owner": "hmedch"
+  }
+}

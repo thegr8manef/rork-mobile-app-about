@@ -1,0 +1,181 @@
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║  GitHub → GitLab Sync (NessnaUp → AttijariUp)                   ║
+# ║                                                                  ║
+# ║  Architecture:                                                   ║
+# ║    GitHub  = NessnaUp   (internal QA app, tn.attijariup.plus)    ║
+# ║    GitLab  = AttijariUp (production app, own config on GitLab)   ║
+# ║    Same codebase — platform config kept separate per repo.       ║
+# ║                                                                  ║
+# ║  What gets synced:                                               ║
+# ║    ✓ All source code (app/, components/, features/, hooks/,      ║
+# ║      services/, store/, queries/, utils/, types/, validation/,   ║
+# ║      constants/, mocks/, assets/, etc.)                          ║
+# ║    ✓ Shared config (tsconfig, babel, metro, tailwind, eslint)    ║
+# ║                                                                  ║
+# ║  What stays separate (excluded from sync):                       ║
+# ║    ✗ android/        — GitLab has its own build.gradle, keys     ║
+# ║    ✗ ios/            — GitLab has its own Xcode project          ║
+# ║    ✗ firebase/       — GitLab has its own Firebase project       ║
+# ║    ✗ .github/        — GitHub-only CI/CD workflows               ║
+# ║    ✗ app.json        — Different app name, icons, package ID     ║
+# ║    ✗ package.json    — May differ in version or scripts          ║
+# ║    ✗ credentials.json— Different signing credentials             ║
+# ║    ✗ eas.json        — GitHub-specific EAS config                ║
+# ║                                                                  ║
+# ║  Merge strategy: .gitattributes uses merge=ours so GitLab's     ║
+# ║  platform files are never overwritten during merge.              ║
+# ║                                                                  ║
+# ║  Triggers:                                                       ║
+# ║    • Push to develop  — auto-sync after every merge              ║
+# ║    • Push to main     — sync stable releases to GitLab           ║
+# ║    • Manual dispatch  — on-demand sync with branch selection     ║
+# ║                                                                  ║
+# ║  Required secrets:                                               ║
+# ║    GITLAB_SSH_PRIVATE_KEY — SSH key with push access to GitLab   ║
+# ╚══════════════════════════════════════════════════════════════════╝
+
+name: "Sync to GitLab (AttijariUp)"
+
+on:
+  push:
+    branches:
+      - feat/cicd
+
+  workflow_dispatch:
+    inputs:
+      source_branch:
+        description: "GitHub branch to sync from"
+        required: true
+        default: feat/cicd
+        type: choice
+        options:
+          - feat/cicd
+      target_branch:
+        description: "GitLab branch to push to"
+        required: true
+        default: feat/cicd
+        type: choice
+        options:
+          - feat/cicd
+concurrency:
+  group: gitlab-sync-${{ github.ref }}
+  cancel-in-progress: false # let in-flight syncs finish to avoid partial pushes
+
+jobs:
+  sync:
+    name: "🔄 GitHub → GitLab"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      GITLAB_HOST: "172.28.101.4"
+      GITLAB_REPO: "git@172.28.101.4:self-care/attijari-up-mobile.git"
+      # Resolve target branch: manual input > branch mapping
+      TARGET_BRANCH: >-
+        ${{
+          github.event.inputs.target_branch
+          || 'feat/cicd'
+        }}
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      # ── SSH setup for internal GitLab ────────────────────
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "${{ secrets.GITLAB_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ env.GITLAB_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Add GitLab remote
+        run: |
+          git remote remove gitlab 2>/dev/null || true
+          git remote add gitlab ${{ env.GITLAB_REPO }}
+
+      # ── Create filtered branch ──────────────────────────
+      # Remove platform-specific files that GitLab maintains independently
+      - name: Create sync branch (exclude platform files)
+        run: |
+          git checkout -b gitlab-sync
+
+          # Remove files that GitLab repo manages separately
+          git rm -r --cached --ignore-unmatch \
+            android/ \
+            ios/ \
+            firebase/ \
+            .github/ \
+            app.json \
+            package.json \
+            credentials.json \
+            eas.json \
+            2>/dev/null || true
+
+          # Append exclusions to .gitignore for this sync branch
+          cat >> .gitignore << 'GITIGNORE'
+
+          # ── Excluded from GitHub → GitLab sync ──
+          # These files are maintained independently in the GitLab repo
+          # with AttijariUp-specific config (package ID, Firebase, signing, etc.)
+          android/
+          ios/
+          firebase/
+          .github/
+          app.json
+          package.json
+          credentials.json
+          eas.json
+          GITIGNORE
+
+          git add .gitignore
+          git commit -m "ci: sync github → gitlab [skip ci]" --allow-empty
+
+      # ── Merge with GitLab to preserve their platform files ──
+      - name: Fetch & merge GitLab target branch
+        run: |
+          git fetch gitlab ${{ env.TARGET_BRANCH }} 2>/dev/null || true
+
+          if git show-ref --verify --quiet refs/remotes/gitlab/${{ env.TARGET_BRANCH }}; then
+            echo "📥 Merging gitlab/${{ env.TARGET_BRANCH }} (ours strategy = keep GitHub source)"
+            git merge gitlab/${{ env.TARGET_BRANCH }} \
+              --allow-unrelated-histories \
+              -s recursive -X ours \
+              -m "ci: merge gitlab/${{ env.TARGET_BRANCH }} [skip ci]" \
+              --no-edit
+          else
+            echo "⚠️ gitlab/${{ env.TARGET_BRANCH }} not found — will create it"
+          fi
+
+      # ── Push to GitLab ──────────────────────────────────
+      - name: Push to GitLab
+        run: |
+          echo "🚀 Pushing to gitlab/${{ env.TARGET_BRANCH }}"
+          git push -f gitlab gitlab-sync:${{ env.TARGET_BRANCH }}
+
+      - name: Summary
+        run: |
+          echo "### ✅ Sync Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Detail | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Source | \`${{ github.ref_name }}\` (GitHub / NessnaUp) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Target | \`${{ env.TARGET_BRANCH }}\` (GitLab / AttijariUp) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Excluded | android/, ios/, firebase/, .github/, app.json, package.json, credentials.json, eas.json |" >> $GITHUB_STEP_SUMMARY
+
+      # ── Cleanup ─────────────────────────────────────────
+      - name: Cleanup
+        if: always()
+        run: |
+          git checkout ${{ github.ref_name }} 2>/dev/null || true
+          git branch -D gitlab-sync 2>/dev/null || true
+          rm -f ~/.ssh/id_rsa

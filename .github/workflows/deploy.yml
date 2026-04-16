@@ -1,0 +1,452 @@
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║  NessnaUp — Build & Distribute (GitHub repo)                    ║
+# ║                                                                  ║
+# ║  This is the INTERNAL QA app pipeline.                           ║
+# ║  For the PRODUCTION app (AttijariUp), see GitLab CI/CD.         ║
+# ║  Code syncs from GitHub → GitLab via promote.yml workflow.       ║
+# ║                                                                  ║
+# ║  Triggers:                                                       ║
+# ║    • Push to develop  → dev APK  → Firebase App Distribution     ║
+# ║    • Push to main     → prod APK/AAB → Google Play internal      ║
+# ║    • Manual dispatch  → choose environment + build type          ║
+# ║                                                                  ║
+# ║  Required secrets (GitHub → Settings → Secrets):                 ║
+# ║    VERSIONING_TOKEN, ENV_DEVELOPMENT_FILE, ENV_PRODUCTION_FILE,  ║
+# ║    KEYSTORE_BASE64, MYAPP_UPLOAD_KEY_ALIAS,                      ║
+# ║    MYAPP_UPLOAD_STORE_PASSWORD, MYAPP_UPLOAD_KEY_PASSWORD,        ║
+# ║    FIREBASE_APP_ID, FIREBASE_TOKEN,                              ║
+# ║    GOOGLE_PLAY_SERVICE_ACCOUNT_JSON (for prod builds)            ║
+# ╚══════════════════════════════════════════════════════════════════╝
+
+name: "NessnaUp — Build & Distribute"
+
+on:
+  push:
+    branches:
+      - feat/cicd
+
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: development
+        type: choice
+        options:
+          - development
+          - production
+      build_type:
+        description: "Android build output"
+        required: true
+        default: apk
+        type: choice
+        options:
+          - apk
+          - aab
+      skip_version_bump:
+        description: "Skip automatic version bump"
+        required: false
+        default: false
+        type: boolean
+
+# ── Only one build per branch at a time ────────────────────
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+# ── Resolve environment from trigger ──────────────────────
+env:
+  NODE_ENV: >-
+    ${{
+      github.event.inputs.environment
+      || (github.ref == 'refs/heads/main' && 'production')
+      || 'development'
+    }}
+
+jobs:
+  # ═══════════════════════════════════════════════════════════
+  # 1. VERSION BUMP
+  # ═══════════════════════════════════════════════════════════
+  version:
+    name: "🏷️ Bump version"
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.skip_version_bump != 'true' }}
+    outputs:
+      new_version: ${{ steps.bump.outputs.new_version }}
+      new_version_code: ${{ steps.bump.outputs.new_version_code }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.VERSIONING_TOKEN || secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci --legacy-peer-deps
+
+      - name: Configure git
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump patch version
+        id: bump
+        run: |
+          npm version patch --no-git-tag-version
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          NEW_VERSION_CODE=$(node -p "
+            const [ma,mi,pa] = require('./package.json').version.split('.').map(Number);
+            ma * 10000 + mi * 100 + pa
+          ")
+          echo "new_version=$NEW_VERSION"       >> "$GITHUB_OUTPUT"
+          echo "new_version_code=$NEW_VERSION_CODE" >> "$GITHUB_OUTPUT"
+
+      - name: Commit & push version bump
+        run: |
+          git add package.json app.json android/app/build.gradle
+          git commit -m "chore: bump version to ${{ steps.bump.outputs.new_version }} [skip ci]"
+          git push
+
+  # ═══════════════════════════════════════════════════════════
+  # 2. READ VERSION (fallback when bump is skipped)
+  # ═══════════════════════════════════════════════════════════
+  read-version:
+    name: "📖 Read current version"
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.skip_version_bump == 'true' }}
+    outputs:
+      new_version: ${{ steps.read.outputs.new_version }}
+      new_version_code: ${{ steps.read.outputs.new_version_code }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: read
+        run: |
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          NEW_VERSION_CODE=$(node -p "
+            const [ma,mi,pa] = require('./package.json').version.split('.').map(Number);
+            ma * 10000 + mi * 100 + pa
+          ")
+          echo "new_version=$NEW_VERSION"       >> "$GITHUB_OUTPUT"
+          echo "new_version_code=$NEW_VERSION_CODE" >> "$GITHUB_OUTPUT"
+
+  # ═══════════════════════════════════════════════════════════
+  # 3. ANDROID BUILD
+  # ═══════════════════════════════════════════════════════════
+  android:
+    name: "🤖 Android (${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'production') || 'development' }})"
+    runs-on: ubuntu-latest
+    needs: [version, read-version]
+    # Run if either version OR read-version succeeded (the other will be skipped)
+    if: |
+      always() &&
+      (needs.version.result == 'success' || needs.read-version.result == 'success')
+    timeout-minutes: 45
+    env:
+      NODE_OPTIONS: "--max-old-space-size=2048"
+      APP_VERSION: ${{ needs.version.outputs.new_version || needs.read-version.outputs.new_version }}
+      APP_VERSION_CODE: ${{ needs.version.outputs.new_version_code || needs.read-version.outputs.new_version_code }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      # Pull the version-bump commit if it was made
+      - name: Pull latest (after version bump)
+        run: git pull --rebase origin ${{ github.ref_name }} || true
+
+      - name: Log build info
+        run: |
+          echo "╔════════════════════════════════════════╗"
+          echo "║  Environment : ${{ env.NODE_ENV }}"
+          echo "║  Version     : ${{ env.APP_VERSION }}"
+          echo "║  Version Code: ${{ env.APP_VERSION_CODE }}"
+          echo "║  Build Type  : ${{ github.event.inputs.build_type || 'apk' }}"
+          echo "║  Commit      : ${{ github.sha }}"
+          echo "╚════════════════════════════════════════╝"
+
+      # ── System setup ─────────────────────────────────────
+      - name: Add swap space
+        run: |
+          if [ ! -f /swapfile ]; then
+            sudo fallocate -l 8G /swapfile
+            sudo chmod 600 /swapfile
+            sudo mkswap /swapfile
+          fi
+          sudo swapon /swapfile || true
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: "temurin"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # ── Gradle caching ──────────────────────────────────
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            android/.gradle
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      - name: Install JS dependencies
+        run: npm ci --legacy-peer-deps
+
+      # ── Environment file ────────────────────────────────
+      - name: Write env file
+        run: |
+          if [ "${{ env.NODE_ENV }}" = "production" ]; then
+            echo "${{ secrets.ENV_PRODUCTION_FILE }}" | base64 -d > .env.production
+            cp .env.production .env
+          else
+            echo "${{ secrets.ENV_DEVELOPMENT_FILE }}" | base64 -d > .env.development
+            cp .env.development .env
+          fi
+
+      # ── Android SDK / signing ───────────────────────────
+      - name: Setup Android SDK
+        run: |
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
+          $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "cmake;3.31.6"
+
+      - name: Decode release keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/release-key.jks
+
+      - name: Configure signing
+        run: |
+          sed -i '/systemProp/d' android/gradle.properties || true
+          cat >> android/gradle.properties << EOF
+          MYAPP_UPLOAD_STORE_FILE=release-key.jks
+          MYAPP_UPLOAD_KEY_ALIAS=${{ secrets.MYAPP_UPLOAD_KEY_ALIAS }}
+          MYAPP_UPLOAD_STORE_PASSWORD=${{ secrets.MYAPP_UPLOAD_STORE_PASSWORD }}
+          MYAPP_UPLOAD_KEY_PASSWORD=${{ secrets.MYAPP_UPLOAD_KEY_PASSWORD }}
+          EOF
+
+      - run: chmod +x android/gradlew
+
+      # ── Clean ───────────────────────────────────────────
+      - name: Clean previous build
+        run: |
+          cd android
+          rm -rf app/build
+          ./gradlew clean --no-daemon
+
+      # ── Build ───────────────────────────────────────────
+      - name: Build Android
+        id: build
+        run: |
+          cd android
+
+          BUILD_TYPE="${{ github.event.inputs.build_type || 'apk' }}"
+          ENV_LABEL="${{ env.NODE_ENV }}"
+
+          if [ "$ENV_LABEL" = "production" ] && [ "$BUILD_TYPE" = "aab" ]; then
+            # Production AAB for Google Play
+            ./gradlew bundleRelease --no-daemon
+            echo "artifact_path=android/app/build/outputs/bundle/release/app-release.aab" >> $GITHUB_OUTPUT
+            echo "artifact_name=nessnaUp-${{ env.APP_VERSION }}-production.aab" >> $GITHUB_OUTPUT
+          elif [ "$ENV_LABEL" = "production" ]; then
+            # Production APK
+            ./gradlew assembleRelease --no-daemon
+            echo "artifact_path=android/app/build/outputs/apk/release/app-release.apk" >> $GITHUB_OUTPUT
+            echo "artifact_name=nessnaUp-${{ env.APP_VERSION }}-production.apk" >> $GITHUB_OUTPUT
+          else
+            # Development / Preview APK
+            ./gradlew assemblePreviewRelease --no-daemon
+            echo "artifact_path=android/app/build/outputs/apk/previewRelease/app-previewRelease.apk" >> $GITHUB_OUTPUT
+            echo "artifact_name=nessnaUp-${{ env.APP_VERSION }}-development.apk" >> $GITHUB_OUTPUT
+          fi
+
+          echo "env_label=$ENV_LABEL" >> $GITHUB_OUTPUT
+
+      # ── Upload artifact ─────────────────────────────────
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.build.outputs.artifact_name }}
+          path: ${{ steps.build.outputs.artifact_path }}
+          retention-days: 30
+
+      # ── Distribution: Firebase (development) ────────────
+      - name: Firebase App Distribution
+        if: env.NODE_ENV == 'development'
+        uses: wzieba/Firebase-Distribution-Github-Action@v1
+        with:
+          appId: ${{ secrets.FIREBASE_APP_ID }}
+          token: ${{ secrets.FIREBASE_TOKEN }}
+          groups: internal-testers-nessnaUp
+          file: ${{ steps.build.outputs.artifact_path }}
+          releaseNotes: |
+            🚀 NessnaUp ${{ env.APP_VERSION }} (dev)
+            Commit: ${{ github.sha }}
+            Branch: ${{ github.ref_name }}
+
+      # ── Distribution: Google Play (production) ──────────
+      # - name: Google Play — internal track
+      #   if: env.NODE_ENV == 'production'
+      #   uses: r0adkll/upload-google-play@v1
+      #   with:
+      #     serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+      #     packageName: tn.attijariup.plus
+      #     releaseFiles: ${{ steps.build.outputs.artifact_path }}
+      #     track: internal
+      #     status: completed
+      #     releaseName: "nessnaUp-${{ env.APP_VERSION }}"
+      #     changesNotSentForReview: true
+
+      # ── Also push production to Firebase for QA ─────────
+      - name: Firebase App Distribution (production QA)
+        if: env.NODE_ENV == 'production'
+        uses: wzieba/Firebase-Distribution-Github-Action@v1
+        with:
+          appId: ${{ secrets.FIREBASE_APP_ID }}
+          token: ${{ secrets.FIREBASE_TOKEN }}
+          groups: internal-testers-nessnaUp
+          file: ${{ steps.build.outputs.artifact_path }}
+          releaseNotes: |
+            🚀 NessnaUp ${{ env.APP_VERSION }} (production)
+            Commit: ${{ github.sha }}
+
+      # ── Cleanup keystore ────────────────────────────────
+      - name: Remove keystore
+        if: always()
+        run: rm -f android/app/release-key.jks
+
+  # ═══════════════════════════════════════════════════════════
+  # 4. iOS BUILD (uncomment when ready)
+  # ═══════════════════════════════════════════════════════════
+  # ios:
+  #   name: "🍎 iOS (${{ github.event.inputs.environment || 'development' }})"
+  #   runs-on: macos-latest
+  #   needs: [version, read-version]
+  #   if: |
+  #     always() &&
+  #     (needs.version.result == 'success' || needs.read-version.result == 'success')
+  #   timeout-minutes: 60
+  #
+  #   env:
+  #     APP_VERSION: ${{ needs.version.outputs.new_version || needs.read-version.outputs.new_version }}
+  #
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         ref: ${{ github.ref }}
+  #
+  #     - name: Pull latest (after version bump)
+  #       run: git pull --rebase origin ${{ github.ref_name }} || true
+  #
+  #     - uses: actions/setup-node@v4
+  #       with:
+  #         node-version: 20
+  #         cache: npm
+  #
+  #     - name: Install JS dependencies
+  #       run: npm ci --legacy-peer-deps
+  #
+  #     - name: Write env file
+  #       run: |
+  #         if [ "${{ env.NODE_ENV }}" = "production" ]; then
+  #           echo "${{ secrets.ENV_PRODUCTION_FILE }}" | base64 -d > .env.production
+  #           cp .env.production .env
+  #         else
+  #           echo "${{ secrets.ENV_DEVELOPMENT_FILE }}" | base64 -d > .env.development
+  #           cp .env.development .env
+  #         fi
+  #
+  #     - name: Cache CocoaPods
+  #       uses: actions/cache@v4
+  #       with:
+  #         path: ios/Pods
+  #         key: pods-${{ runner.os }}-${{ hashFiles('ios/Podfile.lock') }}
+  #         restore-keys: pods-${{ runner.os }}-
+  #
+  #     - name: Install CocoaPods
+  #       run: cd ios && pod install
+  #
+  #     - name: Import signing certificate
+  #       env:
+  #         IOS_CERT_B64: ${{ secrets.IOS_DIST_CERT_B64 }}
+  #         IOS_CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+  #       run: |
+  #         KEYCHAIN_PATH=$RUNNER_TEMP/ci.keychain
+  #         security create-keychain -p "ci" "$KEYCHAIN_PATH"
+  #         security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+  #         security unlock-keychain -p "ci" "$KEYCHAIN_PATH"
+  #         echo "$IOS_CERT_B64" | base64 -d > $RUNNER_TEMP/cert.p12
+  #         security import $RUNNER_TEMP/cert.p12 -P "$IOS_CERT_PASSWORD" -A -k "$KEYCHAIN_PATH"
+  #         security list-keychain -d user -s "$KEYCHAIN_PATH"
+  #         rm -f $RUNNER_TEMP/cert.p12
+  #
+  #     - name: Install provisioning profile
+  #       run: |
+  #         PP_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+  #         mkdir -p "$PP_DIR"
+  #         echo "${{ secrets.IOS_DIST_PROFILE_B64 }}" | base64 -d > "$PP_DIR/app.mobileprovision"
+  #
+  #     - name: Build & archive
+  #       run: |
+  #         xcodebuild \
+  #           -workspace ios/AttijariUpPlus.xcworkspace \
+  #           -scheme AttijariUpPlus \
+  #           -configuration Release \
+  #           -archivePath $RUNNER_TEMP/app.xcarchive \
+  #           -destination "generic/platform=iOS" \
+  #           archive
+  #
+  #     - name: Export IPA
+  #       run: |
+  #         xcodebuild -exportArchive \
+  #           -archivePath $RUNNER_TEMP/app.xcarchive \
+  #           -exportOptionsPlist ios/ExportOptions.plist \
+  #           -exportPath $RUNNER_TEMP/ipa
+  #
+  #     - name: Upload IPA artifact
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: nessnaUp-${{ env.APP_VERSION }}.ipa
+  #         path: ${{ runner.temp }}/ipa/*.ipa
+  #         retention-days: 30
+  #
+  #     # ── TestFlight (development) ─────────────────────────
+  #     - name: Upload to TestFlight
+  #       if: env.NODE_ENV == 'development'
+  #       env:
+  #         APP_STORE_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+  #         APP_STORE_ISSUER: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+  #         APP_STORE_KEY_B64: ${{ secrets.APP_STORE_CONNECT_API_KEY_B64 }}
+  #       run: |
+  #         echo "$APP_STORE_KEY_B64" | base64 -d > $RUNNER_TEMP/asc_api_key.p8
+  #         xcrun altool --upload-app \
+  #           --type ios \
+  #           --file "$(ls $RUNNER_TEMP/ipa/*.ipa)" \
+  #           --apiKey "$APP_STORE_KEY_ID" \
+  #           --apiIssuer "$APP_STORE_ISSUER" \
+  #           --apiKeyPath $RUNNER_TEMP/asc_api_key.p8
+  #         rm -f $RUNNER_TEMP/asc_api_key.p8
+  #
+  #     # ── App Store Review (production) ────────────────────
+  #     - name: Submit for App Store review
+  #       if: env.NODE_ENV == 'production'
+  #       uses: maierj/fastlane-action@v3
+  #       with:
+  #         lane: submit_review
+  #       env:
+  #         FASTLANE_APPLE_ID: ${{ secrets.FASTLANE_APPLE_ID }}
+  #         FASTLANE_APP_SPECIFIC_PASSWORD: ${{ secrets.FASTLANE_APP_SPECIFIC_PASSWORD }}
+  #
+  #     - name: Cleanup keychain
+  #       if: always()
+  #       run: security delete-keychain $RUNNER_TEMP/ci.keychain || true

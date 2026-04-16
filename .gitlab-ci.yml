@@ -1,0 +1,257 @@
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║  AttijariUp — Production Build & Distribute (GitLab CI/CD)      ║
+# ║                                                                  ║
+# ║  This pipeline builds the PRODUCTION app (AttijariUp).           ║
+# ║  Source code is synced from GitHub (NessnaUp) via promote.yml.   ║
+# ║  Platform configs (android/, ios/, firebase/, app.json) are      ║
+# ║  maintained independently in this GitLab repo.                   ║
+# ║                                                                  ║
+# ║  App:      Attijari Up                                           ║
+# ║  Package:  tn.attijari.android.prod (Android)                    ║
+# ║  Bundle:   com.tn.attijariup (iOS)                               ║
+# ║                                                                  ║
+# ║  Required CI/CD Variables (GitLab → Settings → CI/CD):          ║
+# ║    ENV_PRODUCTION_FILE        base64-encoded .env.production     ║
+# ║    KEYSTORE_BASE64            base64-encoded release keystore    ║
+# ║    MYAPP_UPLOAD_KEY_ALIAS     signing key alias                  ║
+# ║    MYAPP_UPLOAD_STORE_PASSWORD keystore password                 ║
+# ║    MYAPP_UPLOAD_KEY_PASSWORD  key password                       ║
+# ║    FIREBASE_APP_ID            Firebase App ID for AttijariUp     ║
+# ║    FIREBASE_TOKEN             Firebase CLI refresh token         ║
+# ║    GOOGLE_PLAY_SA_JSON        Google Play service account JSON   ║
+# ║    CI_PUSH_TOKEN              GitLab token for version commits   ║
+# ╚══════════════════════════════════════════════════════════════════╝
+
+stages:
+  - version
+  - build
+  - distribute
+
+variables:
+  NODE_OPTIONS: "--max-old-space-size=2048"
+  GRADLE_OPTS: "-Dorg.gradle.daemon=false"
+
+# ── Shared cache ───────────────────────────────────────────
+.cache_config:
+  cache:
+    - key:
+        files: [package-lock.json]
+      paths:
+        - node_modules/
+      policy: pull-push
+    - key: gradle-${CI_COMMIT_REF_SLUG}
+      paths:
+        - android/.gradle/
+      policy: pull-push
+
+# ── Shared Android before_script ──────────────────────────
+.android_setup:
+  extends: .cache_config
+  image: reactnativecommunity/react-native-android:latest
+  before_script:
+    # ── JS dependencies ──
+    - npm ci --legacy-peer-deps
+
+    # ── Production env file ──
+    - echo "$ENV_PRODUCTION_FILE" | base64 -d > .env.production
+    - cp .env.production .env
+
+    # ── Android SDK ──
+    - echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
+    - echo "cmake.dir=$ANDROID_SDK_ROOT/cmake/3.31.6" >> android/local.properties || true
+
+    # ── Keystore ──
+    - echo "$KEYSTORE_BASE64" | base64 -d > android/app/release-key.jks
+
+    # ── Signing config ──
+    - |
+      sed -i '/systemProp/d' android/gradle.properties || true
+      sed -i '/MYAPP_UPLOAD_/d' android/gradle.properties || true
+      cat >> android/gradle.properties << EOF
+      MYAPP_UPLOAD_STORE_FILE=release-key.jks
+      MYAPP_UPLOAD_KEY_ALIAS=${MYAPP_UPLOAD_KEY_ALIAS}
+      MYAPP_UPLOAD_STORE_PASSWORD=${MYAPP_UPLOAD_STORE_PASSWORD}
+      MYAPP_UPLOAD_KEY_PASSWORD=${MYAPP_UPLOAD_KEY_PASSWORD}
+      org.gradle.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=512m
+      org.gradle.parallel=false
+      org.gradle.workers.max=2
+      EOF
+
+    - chmod +x android/gradlew
+
+  after_script:
+    - rm -f android/app/release-key.jks
+
+# ═══════════════════════════════════════════════════════════
+# 1. VERSION BUMP
+# ═══════════════════════════════════════════════════════════
+bump-version:
+  stage: version
+  image: node:20
+  extends: .cache_config
+  rules:
+    # Auto-bump on main branch pushes
+    - if: $CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE == "push"
+    # Manual trigger from any branch
+    - if: $CI_PIPELINE_SOURCE == "web"
+      when: manual
+  script:
+    - npm ci --legacy-peer-deps
+    - |
+      git config user.name "gitlab-ci[bot]"
+      git config user.email "gitlab-ci[bot]@noreply.gitlab.com"
+    - npm version patch --no-git-tag-version
+    - |
+      NEW_VERSION=$(node -p "require('./package.json').version")
+      NEW_VERSION_CODE=$(node -p "
+        const [ma,mi,pa] = require('./package.json').version.split('.').map(Number);
+        ma * 10000 + mi * 100 + pa
+      ")
+      echo "APP_VERSION=$NEW_VERSION" >> version.env
+      echo "APP_VERSION_CODE=$NEW_VERSION_CODE" >> version.env
+      echo "✅ Bumped to $NEW_VERSION (code: $NEW_VERSION_CODE)"
+    - |
+      git add package.json app.json android/app/build.gradle
+      git commit -m "chore: bump version to $(node -p "require('./package.json').version") [skip ci]"
+      git push "https://gitlab-ci-token:${CI_PUSH_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" HEAD:${CI_COMMIT_BRANCH}
+  artifacts:
+    reports:
+      dotenv: version.env
+
+# ═══════════════════════════════════════════════════════════
+# 2a. ANDROID — Release APK (for Firebase / direct install)
+# ═══════════════════════════════════════════════════════════
+build-android-apk:
+  stage: build
+  extends: .android_setup
+  needs:
+    - job: bump-version
+      optional: true
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main"
+    - if: $CI_PIPELINE_SOURCE == "web"
+  script:
+    - cd android
+    - rm -rf app/build app/.cxx
+    - ./gradlew clean --no-daemon
+    - ./gradlew assembleRelease --no-daemon --max-workers=2
+  artifacts:
+    name: "attijariUp-${CI_COMMIT_SHORT_SHA}-apk"
+    paths:
+      - android/app/build/outputs/apk/release/app-release.apk
+    expire_in: 30 days
+
+# ═══════════════════════════════════════════════════════════
+# 2b. ANDROID — Release AAB (for Google Play)
+# ═══════════════════════════════════════════════════════════
+build-android-aab:
+  stage: build
+  extends: .android_setup
+  needs:
+    - job: bump-version
+      optional: true
+  rules:
+    # AAB only for main (production release)
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_PIPELINE_SOURCE == "web"
+      when: manual
+  script:
+    - cd android
+    - rm -rf app/build app/.cxx
+    - ./gradlew clean --no-daemon
+    - ./gradlew bundleRelease --no-daemon --max-workers=2
+  artifacts:
+    name: "attijariUp-${CI_COMMIT_SHORT_SHA}-aab"
+    paths:
+      - android/app/build/outputs/bundle/release/app-release.aab
+    expire_in: 30 days
+
+# ═══════════════════════════════════════════════════════════
+# 3a. DISTRIBUTE — Firebase App Distribution
+# ═══════════════════════════════════════════════════════════
+distribute-firebase:
+  stage: distribute
+  image: node:20
+  needs:
+    - job: build-android-apk
+      artifacts: true
+    - job: bump-version
+      optional: true
+      artifacts: true
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main"
+    - if: $CI_PIPELINE_SOURCE == "web"
+  script:
+    - npm install -g firebase-tools
+    - |
+      firebase appdistribution:distribute \
+        android/app/build/outputs/apk/release/app-release.apk \
+        --app "$FIREBASE_APP_ID" \
+        --token "$FIREBASE_TOKEN" \
+        --groups "internal-testers-attijariUp" \
+        --release-notes "🚀 AttijariUp ${APP_VERSION:-latest} — ${CI_COMMIT_SHORT_SHA}"
+
+# ═══════════════════════════════════════════════════════════
+# 3b. DISTRIBUTE — Google Play (production only)
+# ═══════════════════════════════════════════════════════════
+distribute-google-play:
+  stage: distribute
+  image: ruby:3.2
+  needs:
+    - job: build-android-aab
+      artifacts: true
+    - job: bump-version
+      optional: true
+      artifacts: true
+  rules:
+    # Only push to Google Play from main branch
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_PIPELINE_SOURCE == "web"
+      when: manual
+  script:
+    - gem install fastlane --no-document
+    - |
+      echo "$GOOGLE_PLAY_SA_JSON" > /tmp/play-sa.json
+      fastlane supply \
+        --aab android/app/build/outputs/bundle/release/app-release.aab \
+        --package_name "tn.attijari.android.prod" \
+        --track internal \
+        --json_key /tmp/play-sa.json \
+        --skip_upload_metadata \
+        --skip_upload_images \
+        --skip_upload_screenshots
+      rm -f /tmp/play-sa.json
+
+# ═══════════════════════════════════════════════════════════
+# 4. iOS BUILD (uncomment when macOS runner is ready)
+# ═══════════════════════════════════════════════════════════
+# build-ios:
+#   stage: build
+#   tags: [macos]   # requires a macOS GitLab runner
+#   needs:
+#     - job: bump-version
+#       optional: true
+#   rules:
+#     - if: $CI_COMMIT_BRANCH == "main"
+#     - if: $CI_PIPELINE_SOURCE == "web"
+#       when: manual
+#   script:
+#     - npm ci --legacy-peer-deps
+#     - echo "$ENV_PRODUCTION_FILE" | base64 -d > .env.production
+#     - cp .env.production .env
+#     - cd ios && pod install && cd ..
+#     - xcodebuild \
+#         -workspace ios/AttijariUpPlus.xcworkspace \
+#         -scheme AttijariUpPlus \
+#         -configuration Release \
+#         -archivePath $HOME/build/app.xcarchive \
+#         -destination "generic/platform=iOS" \
+#         archive
+#     - xcodebuild -exportArchive \
+#         -archivePath $HOME/build/app.xcarchive \
+#         -exportOptionsPlist ios/ExportOptions.plist \
+#         -exportPath $HOME/build/ipa
+#   artifacts:
+#     paths:
+#       - $HOME/build/ipa/*.ipa
+#     expire_in: 30 days

@@ -1,0 +1,86 @@
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# Local notes
+plugins/prebuild.txt
+
+# dependencies
+node_modules/
+public/
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+package-lock.json
+plugins/prebuild.txt
+
+# Native (WARNING: this ignores the whole folders)
+
+*.orig.*
+
+# Signing / secrets
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.pem
+
+# Metro
+.metro-health-check*
+
+# debug logs
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+
+# local env files
+.env
+.env*.local
+# .env.development
+# .env.production
+
+# typescript / tooling
+*.tsbuildinfo
+.vercel/
+
+# project-specific
+.rork/
+.claude/
+rork-eslint.config.js
+
+# Previous backup folders
+PreviousAndroid/
+PreviousIos/
+
+# Android (commit android/, ignore build outputs)
+android/.gradle/
+android/**/build/
+android/local.properties
+android/.idea/
+android/.cxx/
+android/**/*.hprof
+android/app/release/
+android/app/debug/
+android/**/*.jks
+android/**/*.keystore
+!android/app/debug.keystore
+# Android bundle & assets
+android/app/src/main/assets/index.android.bundle
+android/app/src/main/assets/index.android.bundle.map
+android/app/src/main/res/[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*
+# iOS (commit ios/, ignore Pods + build outputs)
+ios/Pods/
+ios/build/
+ios/DerivedData/
+ios/*.xcworkspace/xcuserdata/
+ios/**/*.xcuserstate
+ios/**/*.xccheckout
+ios/.xcode.env.local
+
+
+# Prebuild diff report
+prebuild-diff-report.md

@@ -1,0 +1,25 @@
+{
+  "java.compile.nullAnalysis.mode": "disabled",
+  "java.configuration.updateBuildConfiguration": "disabled",
+  "postman.settings.dotenv-detection-notification-visibility": false,
+  "java.project.explorer.showNonJavaResources": false,
+  "json.schemaDownload.enable": false,
+
+  "java.jdt.ls.java.home": "C:\\Program Files\\Java\\jdk-17",
+
+  "java.import.exclusions": [
+    "**/node_modules/**",
+    "**/android/.gradle/**",
+    "**/android/build/**",
+    "**/android/app/build/**"
+  ],
+
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/android/.gradle/**": true,
+    "**/android/build/**": true,
+    "**/android/app/build/**": true
+  },
+  "editor.mouseWheelZoom": true,
+  "cSpell.enabled": false
+}
