@@ -1,7 +1,7 @@
 {
   "name": "expo-app",
   "main": "index.js",
-  "version": "1.1.10",
+  "version": "1.1.11",
   "scripts": {
     "start": "bunx rork start -p 0ha40ec7ujo542r96075w --tunnel",
     "start-web": "bunx rork start -p 0ha40ec7ujo542r96075w --web --tunnel",
