@@ -85,7 +85,7 @@ jobs:
         with:
           node-version: 20
 
-      - run: npm ci --legacy-peer-deps
+      - run: npm install --legacy-peer-deps
 
       - name: Configure git
         run: |
@@ -201,7 +201,7 @@ jobs:
           restore-keys: gradle-${{ runner.os }}-
 
       - name: Install JS dependencies
-        run: npm ci --legacy-peer-deps
+        run: npm install --legacy-peer-deps
 
       # ── Environment file ────────────────────────────────
       - name: Write env file
