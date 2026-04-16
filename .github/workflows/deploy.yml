@@ -84,7 +84,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
 
       - run: npm ci --legacy-peer-deps
 
@@ -189,7 +188,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
 
       # ── Gradle caching ──────────────────────────────────
       - name: Cache Gradle
