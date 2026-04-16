@@ -2,7 +2,7 @@
   "expo": {
     "name": "Nessna Up",
     "slug": "nessna-up",
-    "version": "1.1.4",
+    "version": "1.1.5",
     "orientation": "portrait",
     "icon": "./assets/images/appicon.png",
     "scheme": "attijariup",
@@ -24,8 +24,12 @@
         "NSFaceIDUsageDescription": "Allow $(PRODUCT_NAME) to use Face ID.",
         "NSPhotoLibraryUsageDescription": "Allow $(PRODUCT_NAME) to access your photos.",
         "NSPhotoLibraryAddUsageDescription": "Allow $(PRODUCT_NAME) to save photos.",
-        "UIBackgroundModes": ["remote-notification"],
-        "LSApplicationQueriesSchemes": ["itms-apps"]
+        "UIBackgroundModes": [
+          "remote-notification"
+        ],
+        "LSApplicationQueriesSchemes": [
+          "itms-apps"
+        ]
       },
       "config": {
         "usesNonExemptEncryption": false
@@ -33,7 +37,7 @@
       "entitlements": {
         "com.apple.developer.networking.wifi-info": true
       },
-      "buildNumber": "1.1.4"
+      "buildNumber": "1.1.5"
     },
     "android": {
       "softwareKeyboardLayoutMode": "resize",
@@ -43,7 +47,10 @@
         {
           "action": "VIEW",
           "autoVerify": true,
-          "category": ["BROWSABLE", "DEFAULT"],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ],
           "data": [
             {
               "scheme": "https",
@@ -62,7 +69,7 @@
       },
       "package": "tn.attijariup.plus",
       "googleServicesFile": "./firebase/google-services.json",
-      "versionCode": 68,
+      "versionCode": 69,
       "launchMode": "singleTask",
       "permissions": [
         "USE_BIOMETRIC",
