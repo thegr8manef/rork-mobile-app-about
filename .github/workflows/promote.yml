@@ -137,7 +137,7 @@ jobs:
           GITIGNORE
 
           git add .gitignore
-          git commit -m "ci: sync github → gitlab [skip ci]" --allow-empty
+          git commit -m "ci: sync github → gitlab" --allow-empty
 
       # ── Merge with GitLab to preserve their platform files ──
       - name: Fetch & merge GitLab target branch
@@ -149,7 +149,7 @@ jobs:
             git merge gitlab/${{ env.TARGET_BRANCH }} \
               --allow-unrelated-histories \
               -s recursive -X ours \
-              -m "ci: merge gitlab/${{ env.TARGET_BRANCH }} [skip ci]" \
+              -m "ci: merge gitlab/${{ env.TARGET_BRANCH }}" \
               --no-edit
           else
             echo "⚠️ gitlab/${{ env.TARGET_BRANCH }} not found — will create it"

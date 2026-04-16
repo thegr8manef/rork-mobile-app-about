@@ -78,6 +78,16 @@ export default function ClaimDetailsScreen() {
     (s) => s.selectedLanguage,
   ) as LangChoice;
 
+  // ✅ Query — hooks must be called before any early returns
+  const {
+    data: claim,
+    isLoading,
+    isError,
+    refetch,
+  } = useClaimDetail(claimId ?? "");
+  const isService = claim?.categoryLabel.includes("service");
+  const downloadAttachment = useDownloadClaimAttachment();
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString(selectedLanguage ?? undefined, {
@@ -97,11 +107,6 @@ export default function ClaimDetailsScreen() {
       />
     );
   }
-
-  // ✅ Query
-  const { data: claim, isLoading, isError, refetch } = useClaimDetail(claimId);
-  const isService = claim?.categoryLabel.includes("service");
-  const downloadAttachment = useDownloadClaimAttachment();
 
   if (isLoading) {
     return (

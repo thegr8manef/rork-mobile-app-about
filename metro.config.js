@@ -4,7 +4,12 @@ const { withNativeWind } = require("nativewind/metro");
 const { withRorkMetro } = require("@rork-ai/toolkit-sdk/metro");
 const { resolve } = require("path");
 
-const jscramblerMetroPlugin = require("jscrambler-metro-plugin");
+let jscramblerMetroPlugin;
+try {
+  jscramblerMetroPlugin = require("jscrambler-metro-plugin");
+} catch {
+  jscramblerMetroPlugin = null;
+}
 
 function mergeMetroConfig(base, extra) {
   return {
@@ -26,24 +31,20 @@ config = withNativeWind(config, { input: "./global.css" });
 // 2) Rork
 config = withRorkMetro(config);
 
-// 3) Jscrambler (only enable when you want, ex: production build)
-const jscramblerConfig = jscramblerMetroPlugin({
-  enable: process.env.JSCRAMBLER_ENABLE === "true",
-  enabledHermes: true, // likely true for your setup (newArchEnabled)
-  ignoreFile: resolve(__dirname, ".jscramblerignore"),
-
-  // ⚠️ IMPORTANT: SelfDefending may break on Hermes for some apps.
-  // Start with safer transformations first, then add more gradually.
-  params: [
-    {
-      name: "selfDefending",
-      options: { threshold: 1 },
-    },
-  ],
-
-  // If you hit “source maps” build errors and you don't have the feature,
-  // explicitly disable:
-  // sourceMaps: false,
-});
-
-module.exports = mergeMetroConfig(config, jscramblerConfig);
+// 3) Jscrambler (only enable when available and configured)
+if (jscramblerMetroPlugin) {
+  const jscramblerConfig = jscramblerMetroPlugin({
+    enable: process.env.JSCRAMBLER_ENABLE === "true",
+    enabledHermes: true,
+    ignoreFile: resolve(__dirname, ".jscramblerignore"),
+    params: [
+      {
+        name: "selfDefending",
+        options: { threshold: 1 },
+      },
+    ],
+  });
+  module.exports = mergeMetroConfig(config, jscramblerConfig);
+} else {
+  module.exports = config;
+}
