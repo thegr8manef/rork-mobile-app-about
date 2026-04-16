@@ -43,6 +43,7 @@
     "@gluestack-ui/utils": "^3.0.13",
     "@gluestack/ui-next-adapter": "^3.0.3",
     "@gorhom/bottom-sheet": "^5.2.8",
+    "@react-stately/toggle": "^3.8.4",
     "@heroui/calendar": "^2.2.31",
     "@hookform/resolvers": "^5.2.2",
     "@kamarajcalm/react-native-root-detection": "^0.1.3",
