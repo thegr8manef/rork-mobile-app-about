@@ -23,7 +23,7 @@ name: "NessnaUp — Build & Distribute"
 on:
   push:
     branches:
-      - feat/cicd
+      - main
 
   workflow_dispatch:
     inputs:

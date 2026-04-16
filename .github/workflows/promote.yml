@@ -39,24 +39,24 @@ name: "Sync to GitLab (AttijariUp)"
 on:
   push:
     branches:
-      - feat/cicd
+      - main
 
   workflow_dispatch:
     inputs:
       source_branch:
         description: "GitHub branch to sync from"
         required: true
-        default: feat/cicd
+        default: main
         type: choice
         options:
-          - feat/cicd
+          - main
       target_branch:
         description: "GitLab branch to push to"
         required: true
-        default: feat/cicd
+        default: develop
         type: choice
         options:
-          - feat/cicd
+          - develop
 concurrency:
   group: gitlab-sync-${{ github.ref }}
   cancel-in-progress: false # let in-flight syncs finish to avoid partial pushes
@@ -68,13 +68,13 @@ jobs:
     timeout-minutes: 15
 
     env:
-      GITLAB_HOST: "172.28.101.4"
-      GITLAB_REPO: "git@172.28.101.4:self-care/attijari-up-mobile.git"
+      GITLAB_HOST: "gitlab.com"
+      GITLAB_REPO: "git@gitlab.com:jedidimanef/rork-mobile-app-about-gitlab.git"
       # Resolve target branch: manual input > branch mapping
       TARGET_BRANCH: >-
         ${{
           github.event.inputs.target_branch
-          || 'feat/cicd'
+          || 'develop'
         }}
 
     steps:

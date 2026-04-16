@@ -1,16 +1,16 @@
 # GitHub Actions Secrets — Setup Guide
 
-This document describes each secret configured in **GitHub → Settings → Secrets and variables → Actions** and how to obtain/generate them.
+This document describes each secret required by the CI/CD workflows and how to obtain/generate them.
 
 ---
 
 ## Workflows Overview
 
-| Workflow                          | File                            | Purpose                                                                                        |
-| --------------------------------- | ------------------------------- | ---------------------------------------------------------------------------------------------- |
-| **CI — lint & typecheck**         | `.github/workflows/ci.yml`      | Runs ESLint and TypeScript checks on PRs to `develop`/`main`. No secrets required.             |
-| **NessnaUp — Build & Distribute** | `.github/workflows/deploy.yml`  | Builds Android APK/AAB, distributes via Firebase App Distribution (dev) or Google Play (prod). |
-| **Sync to GitLab (AttijariUp)**   | `.github/workflows/promote.yml` | Syncs source code from GitHub (NessnaUp) to internal GitLab (AttijariUp) via SSH.              |
+| Workflow                          | File                            | Purpose                                                                                            |
+| --------------------------------- | ------------------------------- | -------------------------------------------------------------------------------------------------- |
+| **CI — lint & typecheck**         | `.github/workflows/ci.yml`      | Runs ESLint and TypeScript type-checking on PRs and pushes. No secrets required.                   |
+| **NessnaUp — Build & Distribute** | `.github/workflows/deploy.yml`  | Builds Android APK/AAB, distributes via Firebase App Distribution (dev) or Google Play (prod).     |
+| **Sync to GitLab (AttijariUp)**   | `.github/workflows/promote.yml` | Syncs source code from GitHub to an internal GitLab repository, excluding platform-specific files. |
 
 ---
 
@@ -18,244 +18,240 @@ This document describes each secret configured in **GitHub → Settings → Secr
 
 ### 1. `ENV_PRODUCTION_FILE`
 
-| Detail      | Value                                                                                                 |
-| ----------- | ----------------------------------------------------------------------------------------------------- |
-| **Used in** | `deploy.yml`                                                                                          |
-| **Purpose** | Contains the full `.env.production` file (Base64-encoded) with production API URLs, keys, and config. |
+**Used in:** `deploy.yml`
+**Purpose:** Base64-encoded `.env.production` file containing production environment variables (API URLs, keys, feature flags).
 
 **How to get it:**
 
-1. Create your `.env.production` file locally with all production environment variables (API base URL, auth keys, EAS project ID, etc.).
-2. Base64-encode it:
+1. Create your `.env.production` file locally with all required production env vars.
+2. Encode it to base64:
    ```bash
    base64 -w 0 .env.production
    ```
    On macOS:
    ```bash
-   base64 -i .env.production | tr -d '\n'
+   base64 -i .env.production
    ```
 3. Copy the output and paste it as the secret value in GitHub.
-
-> **Note:** `ENV_DEVELOPMENT_FILE` is also referenced in the workflow but is not currently configured as a repository secret. Add it the same way using `.env.development` if dev builds are needed.
 
 ---
 
 ### 2. `EXPO_TOKEN`
 
-| Detail      | Value                                                                 |
-| ----------- | --------------------------------------------------------------------- |
-| **Used in** | Expo CLI / EAS Build (if applicable)                                  |
-| **Purpose** | Authenticates with Expo servers for EAS builds or publishing updates. |
+**Used in:** EAS builds (if configured)
+**Purpose:** Authentication token for Expo services (EAS Build, EAS Submit, EAS Update).
 
 **How to get it:**
 
-1. Go to [https://expo.dev](https://expo.dev) and sign in to your account.
+1. Go to [https://expo.dev](https://expo.dev) and sign in.
 2. Navigate to **Account Settings → Access Tokens**.
-3. Click **Create Token**, give it a descriptive name (e.g., `github-actions`).
-4. Choose **Robot** token type for CI/CD use.
-5. Copy the generated token and save it as the secret value.
+3. Click **Create Token**, give it a name (e.g., `github-actions`).
+4. Copy the generated token and save it as the secret.
 
 ---
 
 ### 3. `FIREBASE_APP_ID`
 
-| Detail      | Value                                                                  |
-| ----------- | ---------------------------------------------------------------------- |
-| **Used in** | `deploy.yml` — Firebase App Distribution step                          |
-| **Purpose** | Identifies the Firebase app to distribute the APK to internal testers. |
+**Used in:** `deploy.yml` (Firebase App Distribution step)
+**Purpose:** Identifies your Firebase app for distributing dev builds to internal testers.
 
 **How to get it:**
 
-1. Go to the [Firebase Console](https://console.firebase.google.com/).
-2. Select your project (NessnaUp).
+1. Go to the [Firebase Console](https://console.firebase.google.com).
+2. Select your project.
 3. Go to **Project Settings** (gear icon) → **General** tab.
-4. Scroll down to **Your apps** → select the Android app.
+4. Scroll to **Your apps** and find the Android app.
 5. Copy the **App ID** (format: `1:123456789:android:abcdef123456`).
 
 ---
 
 ### 4. `FIREBASE_TOKEN`
 
-| Detail      | Value                                                                      |
-| ----------- | -------------------------------------------------------------------------- |
-| **Used in** | `deploy.yml` — Firebase App Distribution step                              |
-| **Purpose** | Authenticates the CI runner to upload builds to Firebase App Distribution. |
+**Used in:** `deploy.yml` (Firebase App Distribution step)
+**Purpose:** CI authentication token for Firebase CLI used to upload builds to App Distribution.
 
 **How to get it:**
 
-1. Install Firebase CLI locally:
+1. Install the Firebase CLI:
    ```bash
    npm install -g firebase-tools
    ```
-2. Run the login command to generate a CI token:
+2. Run:
    ```bash
    firebase login:ci
    ```
-3. A browser window will open — sign in with the Google account that owns the Firebase project.
-4. The CLI will print a refresh token. Copy it and use it as the secret value.
-
-> **Alternative:** You can use a Firebase service account JSON instead, but the token approach is simpler for App Distribution.
+3. Complete the browser authentication flow.
+4. Copy the token printed in the terminal and save it as the secret.
 
 ---
 
 ### 5. `GITLAB_ACCESS_TOKEN`
 
-| Detail      | Value                                                                                  |
-| ----------- | -------------------------------------------------------------------------------------- |
-| **Used in** | GitLab API access (alternative to SSH for certain operations)                          |
-| **Purpose** | Personal or project access token for authenticating with the internal GitLab instance. |
+**Used in:** GitLab integration / API access
+**Purpose:** Personal Access Token for authenticating with the GitLab API (used for API operations alongside SSH for git push).
 
 **How to get it:**
 
-1. Sign in to your internal GitLab instance (`172.28.101.4`).
-2. Go to **User Settings → Access Tokens** (or **Project → Settings → Access Tokens** for a project-scoped token).
-3. Create a new token with:
-   - **Name:** `github-sync`
-   - **Scopes:** `read_repository`, `write_repository`
-   - **Expiration:** Set an appropriate date.
-4. Click **Create** and copy the token immediately (it won't be shown again).
+1. Log in to your GitLab instance.
+2. Go to **User Settings → Access Tokens** (or **Preferences → Access Tokens**).
+3. Create a new token with the following scopes:
+   - `read_repository`
+   - `write_repository`
+   - `api` (if needed for API calls)
+4. Set an expiration date and click **Create personal access token**.
+5. Copy the token immediately (it won't be shown again).
 
 ---
 
 ### 6. `GITLAB_SSH_PRIVATE_KEY`
 
-| Detail      | Value                                                                                           |
-| ----------- | ----------------------------------------------------------------------------------------------- |
-| **Used in** | `promote.yml` — SSH setup for pushing to GitLab                                                 |
-| **Purpose** | SSH private key that allows the GitHub Actions runner to push code to the internal GitLab repo. |
+**Used in:** `promote.yml` (SSH setup step)
+**Purpose:** SSH private key that allows the GitHub Actions runner to push code to the GitLab repository.
 
 **How to get it:**
 
-1. Generate a dedicated SSH key pair (do **not** reuse personal keys):
+1. Generate a dedicated SSH key pair:
    ```bash
    ssh-keygen -t ed25519 -C "github-actions-sync" -f gitlab_sync_key -N ""
    ```
-2. This creates `gitlab_sync_key` (private) and `gitlab_sync_key.pub` (public).
-3. Add the **public key** to GitLab:
-   - Go to GitLab → **User Settings → SSH Keys** (or as a Deploy Key on the project).
-   - Paste the contents of `gitlab_sync_key.pub` → **Add Key**.
-4. Copy the **entire** contents of `gitlab_sync_key` (private key, including `-----BEGIN` and `-----END` lines) and paste it as the GitHub secret.
-5. **Delete** the private key file from your local machine after adding it to GitHub.
+2. Add the **public key** (`gitlab_sync_key.pub`) to GitLab:
+   - Go to **GitLab → User Settings → SSH Keys**.
+   - Paste the contents of `gitlab_sync_key.pub` and save.
+3. Copy the **private key** content:
+   ```bash
+   cat gitlab_sync_key
+   ```
+4. Paste the entire private key (including `-----BEGIN` and `-----END` lines) as the secret value.
 
 ---
 
 ### 7. `KEYSTORE_BASE64`
 
-| Detail      | Value                                                                                       |
-| ----------- | ------------------------------------------------------------------------------------------- |
-| **Used in** | `deploy.yml` — Decode release keystore for APK/AAB signing                                  |
-| **Purpose** | The Android release keystore file (`.jks`), Base64-encoded, used to sign production builds. |
+**Used in:** `deploy.yml` (Decode release keystore step)
+**Purpose:** Base64-encoded Android release keystore (`.jks`) file used to sign the APK/AAB.
 
 **How to get it:**
 
-1. If you already have a keystore (`release-key.jks`), skip to step 3.
-2. Generate a new keystore:
+1. If you don't have a keystore yet, generate one:
    ```bash
-   keytool -genkeypair -v \
-     -keystore release-key.jks \
-     -keyalg RSA -keysize 2048 \
-     -validity 10000 \
-     -alias your-key-alias \
-     -storepass your-store-password \
-     -keypass your-key-password
+   keytool -genkeypair -v -storetype JKS -keyalg RSA -keysize 2048 -validity 10000 \
+     -keystore release-key.jks -alias your-key-alias
    ```
-3. Base64-encode the keystore file:
+2. Encode the keystore to base64:
    ```bash
    base64 -w 0 release-key.jks
    ```
    On macOS:
    ```bash
-   base64 -i release-key.jks | tr -d '\n'
+   base64 -i release-key.jks
    ```
-4. Copy the output and paste it as the secret value.
+3. Copy the output and save it as the secret.
 
-> **Important:** Keep a backup of the original `.jks` file in a secure location. If you lose it, you cannot update your app on Google Play.
+> ⚠️ **Keep your keystore file safe!** Losing it means you cannot update your app on Google Play.
 
 ---
 
 ### 8. `MYAPP_UPLOAD_KEY_ALIAS`
 
-| Detail      | Value                                             |
-| ----------- | ------------------------------------------------- |
-| **Used in** | `deploy.yml` — `gradle.properties` signing config |
-| **Purpose** | The alias name of the key inside the keystore.    |
+**Used in:** `deploy.yml` (Configure signing step)
+**Purpose:** The alias name of the key inside the keystore, used during APK/AAB signing.
 
 **How to get it:**
 
-- This is the `-alias` value you used when generating the keystore with `keytool`.
-- If you forgot it, list the keystore entries:
+- This is the alias you specified when creating the keystore (`-alias` parameter).
+- To check the alias of an existing keystore:
   ```bash
   keytool -list -v -keystore release-key.jks
   ```
-- Look for the **Alias name** field in the output.
+  Look for the **Alias name** field.
 
 ---
 
 ### 9. `MYAPP_UPLOAD_KEY_PASSWORD`
 
-| Detail      | Value                                                        |
-| ----------- | ------------------------------------------------------------ |
-| **Used in** | `deploy.yml` — `gradle.properties` signing config            |
-| **Purpose** | The password for the specific key entry inside the keystore. |
+**Used in:** `deploy.yml` (Configure signing step)
+**Purpose:** Password for the specific key inside the keystore.
 
 **How to get it:**
 
-- This is the `-keypass` value you specified when creating the keystore with `keytool`.
-- If the key password was not set separately, it may be the same as the store password.
+- This is the password you set when generating the key pair inside the keystore.
+- If you used the same password for both the key and the store, it will be the same as `MYAPP_UPLOAD_STORE_PASSWORD`.
 
 ---
 
 ### 10. `MYAPP_UPLOAD_STORE_PASSWORD`
 
-| Detail      | Value                                             |
-| ----------- | ------------------------------------------------- |
-| **Used in** | `deploy.yml` — `gradle.properties` signing config |
-| **Purpose** | The password to open the keystore file itself.    |
+**Used in:** `deploy.yml` (Configure signing step)
+**Purpose:** Password for the keystore file itself.
 
 **How to get it:**
 
-- This is the `-storepass` value you specified when creating the keystore with `keytool`.
+- This is the password you set when creating the keystore file with `keytool`.
+- It protects the keystore container (as opposed to the individual key password).
 
 ---
 
 ### 11. `VERSIONING_TOKEN`
 
-| Detail      | Value                                                                                                                                                                          |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Used in** | `deploy.yml` — checkout step for version bumping                                                                                                                               |
-| **Purpose** | A GitHub Personal Access Token (PAT) that allows the workflow to push version bump commits back to the repository (the default `GITHUB_TOKEN` cannot trigger other workflows). |
+**Used in:** `deploy.yml` (Version bump step)
+**Purpose:** A GitHub Personal Access Token (PAT) with permission to push commits back to the repo (used for automatic version bumping).
 
 **How to get it:**
 
-1. Go to [GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens](https://github.com/settings/tokens?type=beta).
+1. Go to [GitHub → Settings → Developer Settings → Personal Access Tokens → Fine-grained tokens](https://github.com/settings/tokens?type=beta).
 2. Click **Generate new token**.
 3. Configure:
-   - **Token name:** `versioning-bot`
-   - **Repository access:** Select **Only select repositories** → choose this repo.
+   - **Repository access:** Select the specific repository.
    - **Permissions:**
-     - **Contents:** Read and write
-     - **Metadata:** Read-only
+     - **Contents:** Read and Write (to push version bump commits)
+     - **Metadata:** Read
 4. Click **Generate token** and copy it.
-5. Paste it as the secret value in GitHub.
+5. Save it as the secret.
 
-> **Alternative:** You can use a classic PAT with `repo` scope, but fine-grained tokens are recommended for better security.
+> The default `GITHUB_TOKEN` cannot trigger new workflow runs, so a PAT is needed to ensure the build workflow runs after the version bump commit.
 
 ---
 
-## Quick Checklist
+## Google Play Console (Optional — for production releases)
 
-| #   | Secret                        | Status        |
-| --- | ----------------------------- | ------------- |
-| 1   | `ENV_PRODUCTION_FILE`         | ✅ Configured |
-| 2   | `EXPO_TOKEN`                  | ✅ Configured |
-| 3   | `FIREBASE_APP_ID`             | ✅ Configured |
-| 4   | `FIREBASE_TOKEN`              | ✅ Configured |
-| 5   | `GITLAB_ACCESS_TOKEN`         | ✅ Configured |
-| 6   | `GITLAB_SSH_PRIVATE_KEY`      | ✅ Configured |
-| 7   | `KEYSTORE_BASE64`             | ✅ Configured |
-| 8   | `MYAPP_UPLOAD_KEY_ALIAS`      | ✅ Configured |
-| 9   | `MYAPP_UPLOAD_KEY_PASSWORD`   | ✅ Configured |
-| 10  | `MYAPP_UPLOAD_STORE_PASSWORD` | ✅ Configured |
-| 11  | `VERSIONING_TOKEN`            | ✅ Configured |
+If you plan to distribute production builds to Google Play, you'll also need:
 
-> **Missing from secrets:** `ENV_DEVELOPMENT_FILE` is referenced in `deploy.yml` but not shown in the repository secrets. Add it if you plan to run development builds via CI.
+### `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`
+
+**Used in:** `deploy.yml` (Google Play upload step — currently commented out)
+**Purpose:** Service account JSON key for authenticating with Google Play Developer API to upload AABs.
+
+**How to get it:**
+
+1. Go to the [Google Cloud Console](https://console.cloud.google.com).
+2. Select (or create) the project linked to your Google Play Console.
+3. Navigate to **IAM & Admin → Service Accounts**.
+4. Click **Create Service Account**:
+   - Name: `github-actions-play-upload`
+   - Role: not needed at project level.
+5. Click on the created service account → **Keys** tab → **Add Key → Create new key → JSON**.
+6. Download the JSON file.
+7. Go to [Google Play Console → Setup → API access](https://play.google.com/console/developers).
+8. Link the Google Cloud project if not already linked.
+9. Find the service account and click **Manage permissions**.
+10. Grant **Release manager** or at minimum: **Release to production / Manage releases** permissions.
+11. Copy the content of the downloaded JSON file and paste it as the secret value.
+
+---
+
+## Quick Setup Checklist
+
+| Secret                             | Source                               | Required For      |
+| ---------------------------------- | ------------------------------------ | ----------------- |
+| `ENV_PRODUCTION_FILE`              | Your `.env.production` file (base64) | Build & Deploy    |
+| `EXPO_TOKEN`                       | Expo dashboard                       | EAS builds        |
+| `FIREBASE_APP_ID`                  | Firebase Console → Project Settings  | Dev distribution  |
+| `FIREBASE_TOKEN`                   | `firebase login:ci`                  | Dev distribution  |
+| `GITLAB_ACCESS_TOKEN`              | GitLab → Access Tokens               | GitLab API access |
+| `GITLAB_SSH_PRIVATE_KEY`           | `ssh-keygen` (private key)           | GitLab sync       |
+| `KEYSTORE_BASE64`                  | Your `.jks` file (base64)            | Android signing   |
+| `MYAPP_UPLOAD_KEY_ALIAS`           | Keystore alias                       | Android signing   |
+| `MYAPP_UPLOAD_KEY_PASSWORD`        | Keystore key password                | Android signing   |
+| `MYAPP_UPLOAD_STORE_PASSWORD`      | Keystore store password              | Android signing   |
+| `VERSIONING_TOKEN`                 | GitHub PAT (fine-grained)            | Auto version bump |
+| `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` | Google Cloud Console (JSON key)      | Play Store upload |
