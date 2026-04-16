@@ -301,30 +301,32 @@ jobs:
             Branch: ${{ github.ref_name }}
 
       # ── Distribution: Google Play (production) ──────────
-      # - name: Google Play — internal track
-      #   if: env.NODE_ENV == 'production'
-      #   uses: r0adkll/upload-google-play@v1
-      #   with:
-      #     serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
-      #     packageName: tn.attijariup.plus
-      #     releaseFiles: ${{ steps.build.outputs.artifact_path }}
-      #     track: internal
-      #     status: completed
-      #     releaseName: "nessnaUp-${{ env.APP_VERSION }}"
-      #     changesNotSentForReview: true
+      # Closed testing track "app-test" with "Digital Center" tester group
+      # (tester list configured in Google Play Console → Closed testing → Manage track → Testers)
+      - name: Google Play — closed testing (Digital Center)
+        if: env.NODE_ENV == 'production'
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: tn.attijariup.plus
+          releaseFiles: ${{ steps.build.outputs.artifact_path }}
+          track: app-test
+          status: completed
+          releaseName: "nessnaUp-${{ env.APP_VERSION }}"
+          changesNotSentForReview: true
 
       # ── Also push production to Firebase for QA ─────────
-      - name: Firebase App Distribution (production QA)
-        if: env.NODE_ENV == 'production'
-        uses: wzieba/Firebase-Distribution-Github-Action@v1
-        with:
-          appId: ${{ secrets.FIREBASE_APP_ID }}
-          token: ${{ secrets.FIREBASE_TOKEN }}
-          groups: internal-testers-nessnaUp
-          file: ${{ steps.build.outputs.artifact_path }}
-          releaseNotes: |
-            🚀 NessnaUp ${{ env.APP_VERSION }} (production)
-            Commit: ${{ github.sha }}
+      # - name: Firebase App Distribution (production QA)
+      #   if: env.NODE_ENV == 'production'
+      #   uses: wzieba/Firebase-Distribution-Github-Action@v1
+      #   with:
+      #     appId: ${{ secrets.FIREBASE_APP_ID }}
+      #     token: ${{ secrets.FIREBASE_TOKEN }}
+      #     groups: internal-testers-nessnaUp
+      #     file: ${{ steps.build.outputs.artifact_path }}
+      #     releaseNotes: |
+      #       🚀 NessnaUp ${{ env.APP_VERSION }} (production)
+      #       Commit: ${{ github.sha }}
 
       # ── Cleanup keystore ────────────────────────────────
       - name: Remove keystore
