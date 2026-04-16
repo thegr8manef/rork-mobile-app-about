@@ -218,7 +218,9 @@ jobs:
       - name: Setup Android SDK
         run: |
           echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
-          $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "cmake;3.31.6"
+          # Install cmake version compatible with React Native
+          $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "cmake;3.22.1"
+          echo "cmake.dir=$ANDROID_SDK_ROOT/cmake/3.22.1" >> android/local.properties
 
       - name: Decode release keystore
         run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/release-key.jks
@@ -239,8 +241,14 @@ jobs:
       - name: Clean previous build
         run: |
           cd android
-          rm -rf app/build
+          rm -rf app/build app/.cxx
           ./gradlew clean --no-daemon
+
+      # ── Generate codegen artifacts ──────────────────────
+      - name: Generate codegen artifacts
+        run: |
+          cd android
+          ./gradlew generateCodegenArtifactsFromSchema --no-daemon
 
       # ── Build ───────────────────────────────────────────
       - name: Build Android

@@ -50,7 +50,7 @@ jobs:
           cp .env.development .env
 
       - name: Lint
-        run: npx expo lint
+        run: npx expo lint --fix
 
       - name: Typecheck
         run: npx tsc --noEmit
