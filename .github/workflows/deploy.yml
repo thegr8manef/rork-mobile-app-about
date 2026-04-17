@@ -347,44 +347,64 @@ jobs:
       - name: Huawei AppGallery — internal testing
         if: steps.build.outputs.distribution == 'huawei-appgallery'
         run: |
-          # Install PyJWT for reliable PS256 JWT generation
-          pip3 install PyJWT cryptography --quiet
+          # Install cryptography for PS256 JWT generation
+          pip3 install cryptography --quiet
 
           # Decode service account JSON
           echo "${{ secrets.HUAWEI_SERVICE_ACCOUNT_JSON }}" | base64 -d > /tmp/huawei-sa.json
 
           # Generate JWT and exchange for access token using Python
-          ACCESS_TOKEN=$(python3 -c "
-          import jwt, json, time, urllib.request, urllib.parse, sys
+          # Note: Must use salt_length=32 (digest length) as Huawei's server expects,
+          # not PSS.MAX_LENGTH which PyJWT uses by default
+          ACCESS_TOKEN=$(python3 << 'PYEOF'
+          import json, time, base64, sys, urllib.request, urllib.parse
+          from cryptography.hazmat.primitives import hashes, serialization
+          from cryptography.hazmat.primitives.asymmetric import padding as asym_padding
+
+          def b64url(data):
+              if isinstance(data, str): data = data.encode()
+              return base64.urlsafe_b64encode(data).rstrip(b'=').decode()
 
           with open('/tmp/huawei-sa.json') as f:
               sa = json.load(f)
 
+          # Build JWT header and payload
+          header = json.dumps({"alg":"PS256","typ":"JWT","kid": sa["key_id"]}, separators=(",",":"))
           now = int(time.time())
-          token = jwt.encode(
-              {'iss': str(sa['sub_account']), 'iat': now, 'exp': now + 3600, 'aud': sa['token_uri']},
-              sa['private_key'],
-              algorithm='PS256',
-              headers={'kid': sa['key_id']}
+          payload = json.dumps({"iss": str(sa["sub_account"]),"iat": now,"exp": now + 3600,"aud": sa["token_uri"]}, separators=(",",":"))
+
+          h_b64 = b64url(header)
+          p_b64 = b64url(payload)
+          message = f"{h_b64}.{p_b64}".encode()
+
+          # Sign with PS256 using salt_length = digest_length (32)
+          key = serialization.load_pem_private_key(sa["private_key"].encode(), password=None)
+          sig = key.sign(
+              message,
+              asym_padding.PSS(mgf=asym_padding.MGF1(hashes.SHA256()), salt_length=hashes.SHA256.digest_size),
+              hashes.SHA256()
           )
+          jwt_token = f"{h_b64}.{p_b64}.{b64url(sig)}"
 
           # Exchange JWT for access token
           data = urllib.parse.urlencode({
-              'grant_type': 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-              'assertion': token
+              "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+              "assertion": jwt_token
           }).encode()
-          req = urllib.request.Request(sa['token_uri'], data=data, headers={'Content-Type': 'application/x-www-form-urlencoded'})
+          req = urllib.request.Request(sa["token_uri"], data=data, headers={"Content-Type": "application/x-www-form-urlencoded"})
           try:
               resp = json.loads(urllib.request.urlopen(req).read())
           except urllib.error.HTTPError as e:
               body = e.read().decode()
-              print(f'Token exchange failed (HTTP {e.code}): {body}', file=sys.stderr)
+              print(f"Token exchange failed (HTTP {e.code}): {body}", file=sys.stderr)
               sys.exit(1)
-          if 'access_token' not in resp:
-              print(f'No access_token in response: {resp}', file=sys.stderr)
+
+          if "access_token" not in resp:
+              print(f"No access_token in response: {resp}", file=sys.stderr)
               sys.exit(1)
-          print(resp['access_token'])
-          ")
+          print(resp["access_token"])
+          PYEOF
+          )
 
           if [ -z "$ACCESS_TOKEN" ]; then
             echo "❌ Failed to get access token"
