@@ -355,7 +355,7 @@ jobs:
 
           # Generate JWT and exchange for access token using Python
           ACCESS_TOKEN=$(python3 -c "
-          import jwt, json, time, urllib.request, urllib.parse
+          import jwt, json, time, urllib.request, urllib.parse, sys
 
           with open('/tmp/huawei-sa.json') as f:
               sa = json.load(f)
@@ -374,9 +374,15 @@ jobs:
               'assertion': token
           }).encode()
           req = urllib.request.Request(sa['token_uri'], data=data, headers={'Content-Type': 'application/x-www-form-urlencoded'})
-          resp = json.loads(urllib.request.urlopen(req).read())
+          try:
+              resp = json.loads(urllib.request.urlopen(req).read())
+          except urllib.error.HTTPError as e:
+              body = e.read().decode()
+              print(f'Token exchange failed (HTTP {e.code}): {body}', file=sys.stderr)
+              sys.exit(1)
           if 'access_token' not in resp:
-              raise Exception(f'Failed to get access token: {resp}')
+              print(f'No access_token in response: {resp}', file=sys.stderr)
+              sys.exit(1)
           print(resp['access_token'])
           ")
 
