@@ -4,7 +4,8 @@ import {
   BottomSheetModal,
   BottomSheetView,
   BottomSheetScrollView,
-  BottomSheetTextInput } from "@gorhom/bottom-sheet";
+  BottomSheetTextInput,
+} from "@gorhom/bottom-sheet";
 import { X } from "lucide-react-native";
 import { BankingColors, FontFamily } from "@/constants";
 import { useTranslation } from "react-i18next";
@@ -51,7 +52,8 @@ export default function SchoolingTransferFilterSheet({
   tempSelectedStatus,
   setTempSelectedStatus,
   onApply,
-  onClear }: Props) {
+  onClear,
+}: Props) {
   const { t } = useTranslation();
   const snapPoints = useMemo(() => ["50%", "95%"], []);
 
@@ -155,6 +157,7 @@ export default function SchoolingTransferFilterSheet({
                 {t("schoolingHistory.minimum")}
               </Text>
               <BottomSheetTextInput
+                allowFontScaling={false}
                 style={styles.amountInput}
                 placeholder="0.00"
                 value={tempMinAmount}
@@ -171,6 +174,7 @@ export default function SchoolingTransferFilterSheet({
                 {t("schoolingHistory.maximum")}
               </Text>
               <BottomSheetTextInput
+                allowFontScaling={false}
                 style={styles.amountInput}
                 placeholder="0.00"
                 value={tempMaxAmount}
@@ -217,55 +221,69 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: BankingColors.border },
-  modalTitle: { fontSize: 18, fontFamily: FontFamily.bold, color: BankingColors.text },
+    borderBottomColor: BankingColors.border,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontFamily: FontFamily.bold,
+    color: BankingColors.text,
+  },
   modalBody: { padding: 20 },
   filterSectionTitle: {
     fontSize: 16,
     fontFamily: FontFamily.semibold,
     color: BankingColors.text,
     marginBottom: 12,
-    marginTop: 8 },
+    marginTop: 8,
+  },
   statusChipsContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
-    marginBottom: 24 },
+    marginBottom: 24,
+  },
   statusChip: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
     backgroundColor: BankingColors.surface,
     borderWidth: 1,
-    borderColor: BankingColors.border },
+    borderColor: BankingColors.border,
+  },
   statusChipActive: {
     backgroundColor: BankingColors.primary,
-    borderColor: BankingColors.primary },
+    borderColor: BankingColors.primary,
+  },
   statusChipText: {
     fontSize: 14,
     fontFamily: FontFamily.semibold,
-    color: BankingColors.textSecondary },
+    color: BankingColors.textSecondary,
+  },
   statusChipTextActive: { color: "#FFFFFF" },
 
   monthChipsContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
-    marginBottom: 24 },
+    marginBottom: 24,
+  },
   monthChip: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
     backgroundColor: BankingColors.surface,
     borderWidth: 1,
-    borderColor: BankingColors.border },
+    borderColor: BankingColors.border,
+  },
   monthChipActive: {
     backgroundColor: BankingColors.primary,
-    borderColor: BankingColors.primary },
+    borderColor: BankingColors.primary,
+  },
   monthChipText: {
     fontSize: 14,
     fontFamily: FontFamily.semibold,
-    color: BankingColors.textSecondary },
+    color: BankingColors.textSecondary,
+  },
   monthChipTextActive: { color: "#FFFFFF" },
 
   amountRangeContainer: { flexDirection: "row", gap: 12, marginBottom: 24 },
@@ -274,7 +292,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: FontFamily.semibold,
     color: BankingColors.textSecondary,
-    marginBottom: 8 },
+    marginBottom: 8,
+  },
   amountInput: {
     padding: 12,
     borderRadius: 8,
@@ -282,29 +301,39 @@ const styles = StyleSheet.create({
     borderColor: BankingColors.border,
     backgroundColor: BankingColors.surface,
     fontSize: 16,
-    color: BankingColors.text },
+    color: BankingColors.text,
+  },
 
   modalFooter: {
     flexDirection: "row",
     padding: 20,
     gap: 12,
     borderTopWidth: 1,
-    borderTopColor: BankingColors.border },
+    borderTopColor: BankingColors.border,
+  },
   clearButton: {
     flex: 1,
     paddingVertical: 14,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: BankingColors.border,
-    alignItems: "center" },
+    alignItems: "center",
+  },
   clearButtonText: {
     fontSize: 16,
     fontFamily: FontFamily.semibold,
-    color: BankingColors.text },
+    color: BankingColors.text,
+  },
   applyButton: {
     flex: 1,
     paddingVertical: 14,
     borderRadius: 8,
     backgroundColor: BankingColors.primary,
-    alignItems: "center" },
-  applyButtonText: { fontSize: 16, fontFamily: FontFamily.semibold, color: "#FFFFFF" } });
+    alignItems: "center",
+  },
+  applyButtonText: {
+    fontSize: 16,
+    fontFamily: FontFamily.semibold,
+    color: "#FFFFFF",
+  },
+});

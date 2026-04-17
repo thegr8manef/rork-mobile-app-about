@@ -280,6 +280,7 @@ export default function BillFilterSheet({
             <View style={styles.amountInputContainer}>
               <Text style={styles.amountInputLabel}>{t("common.minimum")}</Text>
               <BottomSheetTextInput
+                allowFontScaling={false}
                 style={styles.amountInput}
                 placeholder="0.00"
                 value={tempMinAmount}
@@ -292,6 +293,7 @@ export default function BillFilterSheet({
             <View style={styles.amountInputContainer}>
               <Text style={styles.amountInputLabel}>{t("common.maximum")}</Text>
               <BottomSheetTextInput
+                allowFontScaling={false}
                 style={styles.amountInput}
                 placeholder="0.00"
                 value={tempMaxAmount}

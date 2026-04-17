@@ -4,7 +4,8 @@ import React, {
   useRef,
   useEffect,
   useCallback,
-  useMemo } from "react";
+  useMemo,
+} from "react";
 import {
   View,
   TextInput,
@@ -13,11 +14,13 @@ import {
   StyleSheet,
   ActivityIndicator,
   Image,
-  Keyboard } from "react-native";
+  Keyboard,
+} from "react-native";
 import BottomSheet, {
   BottomSheetFlatList,
   BottomSheetBackdrop,
-  BottomSheetTextInput } from "@gorhom/bottom-sheet";
+  BottomSheetTextInput,
+} from "@gorhom/bottom-sheet";
 import { useTranslation } from "react-i18next";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import {
@@ -28,7 +31,8 @@ import {
   CreditCard,
   Check,
   Search,
-  Info } from "lucide-react-native";
+  Info,
+} from "lucide-react-native";
 import { useMutation } from "@tanstack/react-query";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -42,14 +46,16 @@ import { Shadow } from "@/constants/shadows";
 import {
   DEFAULT_COUNTRY,
   CountryCode,
-  COUNTRY_CODES } from "@/constants/countries";
+  COUNTRY_CODES,
+} from "@/constants/countries";
 import { getPhoneRule, isPhoneValid } from "@/constants/phone-rules";
 import useShowMessage from "@/hooks/useShowMessage";
 import {
   contactDetailsInitApi,
   contactDetailsConfirmApi,
   getProfileWithTokenApi,
-  ApiContactError } from "@/services/auth.api";
+  ApiContactError,
+} from "@/services/auth.api";
 
 /* ───────────────────────── Phone formatting ───────────────────────── */
 
@@ -212,8 +218,13 @@ export default function ContactDataValidationScreen() {
         const profileData = await getProfileWithTokenApi(accessToken);
         const primaryUser = profileData?.users?.[0];
 
-        if (primaryUser?.contact != null && primaryUser?.contact?.telNumber != null) {
-          console.log("User has contact data, redirecting to mandatory-reset-password");
+        if (
+          primaryUser?.contact != null &&
+          primaryUser?.contact?.telNumber != null
+        ) {
+          console.log(
+            "User has contact data, redirecting to mandatory-reset-password",
+          );
           if (!didNavigateRef.current) {
             didNavigateRef.current = true;
             router.replace({
@@ -256,7 +267,8 @@ export default function ContactDataValidationScreen() {
       } = {
         identificationType: "CIN",
         identificationNumber: cin,
-        phoneNumber: fullPhoneNumber };
+        phoneNumber: fullPhoneNumber,
+      };
 
       if (email.trim()) {
         payload.email = email.trim();
@@ -283,7 +295,8 @@ export default function ContactDataValidationScreen() {
           "contactValidation.errorDescription",
         );
       }
-    } });
+    },
+  });
 
   const confirmMutation = useMutation({
     mutationFn: async () => {
@@ -342,7 +355,8 @@ export default function ContactDataValidationScreen() {
       setOtp(["", "", "", "", "", ""]);
       didAutoSubmitRef.current = false;
       inputRefs.current[0]?.focus();
-    } });
+    },
+  });
 
   useEffect(() => {
     if (step === "otp") {
@@ -528,7 +542,10 @@ export default function ContactDataValidationScreen() {
               value={phone}
               onChangeText={(text) => {
                 const digits = stripDigits(text);
-                const maxDigits = phoneRule.placeholder.replace(/\s/g, "").length;
+                const maxDigits = phoneRule.placeholder.replace(
+                  /\s/g,
+                  "",
+                ).length;
                 const limited = digits.slice(0, maxDigits);
                 const formatted = formatPhoneByPlaceholder(
                   limited,
@@ -569,7 +586,6 @@ export default function ContactDataValidationScreen() {
             returnKeyType="done"
           />
         </View>
-
       </View>
     </>
   );
@@ -582,7 +598,11 @@ export default function ContactDataValidationScreen() {
         <TText style={styles.title} tKey="contactValidation.otpTitle" />
         <TText
           style={styles.subtitle}
-          tKey={isOtpByMail ? "contactValidation.otpSubtitleMail" : "contactValidation.otpSubtitle"}
+          tKey={
+            isOtpByMail
+              ? "contactValidation.otpSubtitleMail"
+              : "contactValidation.otpSubtitle"
+          }
         />
       </View>
 
@@ -637,123 +657,134 @@ export default function ContactDataValidationScreen() {
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-    <View style={styles.background}>
-      <KeyboardAwareScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          {
-            paddingTop: insets.top,
-            paddingBottom: Spacing.md },
-        ]}
-        keyboardShouldPersistTaps="always"
-        enableOnAndroid
-        extraScrollHeight={20}
-      >
-        <View style={styles.content}>
-          {step === "otp" && (
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={() => {
-                setStep("form");
-                setOtp(["", "", "", "", "", ""]);
-                didAutoSubmitRef.current = false;
-              }}
-              disabled={confirmMutation.isPending}
-            >
-              <ArrowLeft size={IconSize.md} color={BankingColors.primary} />
-            </TouchableOpacity>
-          )}
-
-          <View style={styles.iconContainer}>
-            <Image
-              source={require("@assets/images/icon.png")}
-              style={styles.logo}
-              resizeMode="contain"
-            />
-          </View>
-
-          {step === "loading" && renderLoadingStep()}
-          {step === "form" && renderFormStep()}
-          {step === "otp" && renderOtpStep()}
-        </View>
-      </KeyboardAwareScrollView>
-
-      {/* ─────────── Pinned submit button (form step only) ─────────── */}
-      {step === "form" && (
-        <View style={[styles.submitContainer, { paddingBottom: insets.bottom + Spacing.md }]}>
-          <TouchableOpacity
-            style={[
-              styles.submitButton,
-              (!isFormValid || validateMutation.isPending) && styles.submitButtonDisabled,
-            ]}
-            onPress={handleSubmit}
-            disabled={!isFormValid || validateMutation.isPending}
-          >
-            {validateMutation.isPending ? (
-              <ActivityIndicator color={BankingColors.white} />
-            ) : (
-              <>
-                <TText style={styles.submitButtonText} tKey="contactValidation.continue" />
-                <ArrowRight size={IconSize.md} color={BankingColors.white} />
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Only mount when open — prevents touch blocking */}
-      {sheetOpen && (
-        <BottomSheet
-          ref={countrySheetRef}
-          index={-1}
-          snapPoints={countrySnapPoints}
-          enablePanDownToClose
-          backdropComponent={renderBackdrop}
-          handleIndicatorStyle={styles.handleIndicator}
-          backgroundStyle={styles.bottomSheetBackground}
-          onChange={(index) => {
-            if (index === -1) {
-              setCountrySearch("");
-              setSheetOpen(false);
-            }
-          }}
+      <View style={styles.background}>
+        <KeyboardAwareScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            {
+              paddingTop: insets.top,
+              paddingBottom: Spacing.md,
+            },
+          ]}
+          keyboardShouldPersistTaps="always"
+          enableOnAndroid
+          extraScrollHeight={20}
         >
-          <View style={styles.bottomSheetContent}>
-            <View style={styles.modalHeader}>
-              <TText
-                style={styles.modalTitle}
-                tKey="forgotPassword.selectCountry"
-              />
+          <View style={styles.content}>
+            {step === "otp" && (
               <TouchableOpacity
-                style={styles.modalCloseButton}
-                onPress={closeCountryPicker}
+                style={styles.backButton}
+                onPress={() => {
+                  setStep("form");
+                  setOtp(["", "", "", "", "", ""]);
+                  didAutoSubmitRef.current = false;
+                }}
+                disabled={confirmMutation.isPending}
               >
-                <TText style={styles.modalCloseText} tKey="common.done" />
+                <ArrowLeft size={IconSize.md} color={BankingColors.primary} />
               </TouchableOpacity>
-            </View>
+            )}
 
-            <View style={styles.searchContainer}>
-              <Search size={20} color={BankingColors.textTertiary} />
-              <BottomSheetTextInput
-                style={styles.searchInput}
-                value={countrySearch}
-                onChangeText={setCountrySearch}
-                placeholder={t("forgotPassword.searchCountry")}
-                placeholderTextColor={BankingColors.textTertiary}
+            <View style={styles.iconContainer}>
+              <Image
+                source={require("@assets/images/icon.png")}
+                style={styles.logo}
+                resizeMode="contain"
               />
             </View>
 
-            <BottomSheetFlatList
-              data={filteredCountries}
-              keyExtractor={(item: CountryCode) => item.code}
-              renderItem={renderCountryItem}
-              contentContainerStyle={styles.countryList}
-              showsVerticalScrollIndicator={false}
-            />
+            {step === "loading" && renderLoadingStep()}
+            {step === "form" && renderFormStep()}
+            {step === "otp" && renderOtpStep()}
           </View>
-        </BottomSheet>
-      )}
-    </View>
+        </KeyboardAwareScrollView>
+
+        {/* ─────────── Pinned submit button (form step only) ─────────── */}
+        {step === "form" && (
+          <View
+            style={[
+              styles.submitContainer,
+              { paddingBottom: insets.bottom + Spacing.md },
+            ]}
+          >
+            <TouchableOpacity
+              style={[
+                styles.submitButton,
+                (!isFormValid || validateMutation.isPending) &&
+                  styles.submitButtonDisabled,
+              ]}
+              onPress={handleSubmit}
+              disabled={!isFormValid || validateMutation.isPending}
+            >
+              {validateMutation.isPending ? (
+                <ActivityIndicator color={BankingColors.white} />
+              ) : (
+                <>
+                  <TText
+                    style={styles.submitButtonText}
+                    tKey="contactValidation.continue"
+                  />
+                  <ArrowRight size={IconSize.md} color={BankingColors.white} />
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Only mount when open — prevents touch blocking */}
+        {sheetOpen && (
+          <BottomSheet
+            ref={countrySheetRef}
+            index={-1}
+            snapPoints={countrySnapPoints}
+            enablePanDownToClose
+            backdropComponent={renderBackdrop}
+            handleIndicatorStyle={styles.handleIndicator}
+            backgroundStyle={styles.bottomSheetBackground}
+            onChange={(index) => {
+              if (index === -1) {
+                setCountrySearch("");
+                setSheetOpen(false);
+              }
+            }}
+          >
+            <View style={styles.bottomSheetContent}>
+              <View style={styles.modalHeader}>
+                <TText
+                  style={styles.modalTitle}
+                  tKey="forgotPassword.selectCountry"
+                />
+                <TouchableOpacity
+                  style={styles.modalCloseButton}
+                  onPress={closeCountryPicker}
+                >
+                  <TText style={styles.modalCloseText} tKey="common.done" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.searchContainer}>
+                <Search size={20} color={BankingColors.textTertiary} />
+                <BottomSheetTextInput
+                  allowFontScaling={false}
+                  style={styles.searchInput}
+                  value={countrySearch}
+                  onChangeText={setCountrySearch}
+                  placeholder={t("forgotPassword.searchCountry")}
+                  placeholderTextColor={BankingColors.textTertiary}
+                />
+              </View>
+
+              <BottomSheetFlatList
+                data={filteredCountries}
+                keyExtractor={(item: CountryCode) => item.code}
+                renderItem={renderCountryItem}
+                contentContainerStyle={styles.countryList}
+                showsVerticalScrollIndicator={false}
+              />
+            </View>
+          </BottomSheet>
+        )}
+      </View>
     </TouchableWithoutFeedback>
   );
 }
@@ -766,7 +797,8 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: Spacing.xxl,
-    paddingTop: Spacing.xs },
+    paddingTop: Spacing.xs,
+  },
 
   backButton: {
     width: 44,
@@ -776,7 +808,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: Spacing.lg,
-    ...Shadow.xs },
+    ...Shadow.xs,
+  },
 
   iconContainer: { alignItems: "center", marginBottom: Spacing.md },
   logo: { width: 200, height: 85 },
@@ -787,12 +820,14 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.bold,
     marginBottom: Spacing.sm,
     color: BankingColors.textPrimary,
-    textAlign: "center" },
+    textAlign: "center",
+  },
   subtitle: {
     fontSize: FontSize.base,
     color: BankingColors.textSecondary,
     lineHeight: FontSize.base * LineHeight.normal,
-    textAlign: "center" },
+    textAlign: "center",
+  },
 
   form: { gap: Spacing.lg },
 
@@ -800,15 +835,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.sm,
-    marginBottom: Spacing.xs },
+    marginBottom: Spacing.xs,
+  },
   label: {
     fontSize: FontSize.base,
     fontFamily: FontFamily.semibold,
-    color: BankingColors.textPrimary },
+    color: BankingColors.textPrimary,
+  },
   requiredAsterisk: {
     fontSize: FontSize.base,
     color: BankingColors.error,
-    fontFamily: FontFamily.bold },
+    fontFamily: FontFamily.bold,
+  },
 
   input: {
     backgroundColor: BankingColors.surface,
@@ -818,13 +856,15 @@ const styles = StyleSheet.create({
     borderColor: BankingColors.border,
     fontSize: FontSize.base,
     color: BankingColors.textPrimary,
-    ...Shadow.xs },
+    ...Shadow.xs,
+  },
   inputMarginTop: { marginTop: Spacing.sm },
 
   phoneInputContainer: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.sm },
+    gap: Spacing.sm,
+  },
   countrySelector: {
     flexDirection: "row",
     alignItems: "center",
@@ -835,12 +875,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: BankingColors.border,
     gap: Spacing.xs,
-    ...Shadow.xs },
+    ...Shadow.xs,
+  },
   countryFlag: { fontSize: 20 },
   countryDial: {
     fontSize: FontSize.base,
     fontFamily: FontFamily.medium,
-    color: BankingColors.textPrimary },
+    color: BankingColors.textPrimary,
+  },
   phoneInput: {
     flex: 1,
     backgroundColor: BankingColors.surface,
@@ -851,7 +893,8 @@ const styles = StyleSheet.create({
     fontSize: FontSize.base,
     color: BankingColors.textPrimary,
     letterSpacing: 1,
-    ...Shadow.xs },
+    ...Shadow.xs,
+  },
 
   disabled: { opacity: 0.6 },
 
@@ -870,14 +913,17 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     gap: Spacing.sm,
-    ...Shadow.button },
+    ...Shadow.button,
+  },
   submitButtonDisabled: {
     backgroundColor: BankingColors.borderMedium,
-    opacity: 0.6 },
+    opacity: 0.6,
+  },
   submitButtonText: {
     color: BankingColors.white,
     fontSize: FontSize.md,
-    fontFamily: FontFamily.semibold },
+    fontFamily: FontFamily.semibold,
+  },
 
   phoneDisplay: {
     flexDirection: "row",
@@ -887,16 +933,19 @@ const styles = StyleSheet.create({
     backgroundColor: BankingColors.surface,
     padding: Spacing.md,
     borderRadius: BorderRadius.lg,
-    marginBottom: Spacing.xl },
+    marginBottom: Spacing.xl,
+  },
   phoneText: {
     fontSize: FontSize.md,
     fontFamily: FontFamily.semibold,
-    color: BankingColors.textPrimary },
+    color: BankingColors.textPrimary,
+  },
 
   otpContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
-    gap: Spacing.sm },
+    gap: Spacing.sm,
+  },
   otpInput: {
     flex: 1,
     height: 56,
@@ -907,38 +956,45 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xxl,
     fontFamily: FontFamily.bold,
     color: BankingColors.textPrimary,
-    backgroundColor: BankingColors.background },
+    backgroundColor: BankingColors.background,
+  },
   otpInputFilled: {
     borderColor: BankingColors.primary,
-    backgroundColor: BankingColors.primary + "05" },
+    backgroundColor: BankingColors.primary + "05",
+  },
 
   loadingContainer: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: Spacing.md,
-    marginTop: Spacing.md },
+    marginTop: Spacing.md,
+  },
   loadingText: {
     fontSize: FontSize.base,
     color: BankingColors.textSecondary,
-    fontFamily: FontFamily.medium },
+    fontFamily: FontFamily.medium,
+  },
   demoText: {
     fontSize: FontSize.sm,
     color: BankingColors.textTertiary,
     textAlign: "center",
     marginTop: Spacing.xl,
-    fontStyle: "italic" },
+    fontStyle: "italic",
+  },
 
   loadingFullContainer: {
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: Spacing.xxxl,
-    gap: Spacing.lg },
+    gap: Spacing.lg,
+  },
   loadingFullText: {
     fontSize: FontSize.base,
     color: BankingColors.textSecondary,
     fontFamily: FontFamily.medium,
-    textAlign: "center" },
+    textAlign: "center",
+  },
 
   otpByMailBanner: {
     flexDirection: "row",
@@ -949,20 +1005,23 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     marginBottom: Spacing.lg,
     borderWidth: 1,
-    borderColor: BankingColors.info ?? BankingColors.primary + "30" },
+    borderColor: BankingColors.info ?? BankingColors.primary + "30",
+  },
   otpByMailText: {
     flex: 1,
     fontSize: FontSize.sm,
     color: BankingColors.info ?? BankingColors.primary,
     fontFamily: FontFamily.medium,
-    lineHeight: FontSize.sm * LineHeight.normal },
+    lineHeight: FontSize.sm * LineHeight.normal,
+  },
 
   // Bottom Sheet
   handleIndicator: { backgroundColor: BankingColors.borderMedium, width: 40 },
   bottomSheetBackground: {
     backgroundColor: BankingColors.background,
     borderTopLeftRadius: BorderRadius.xxl,
-    borderTopRightRadius: BorderRadius.xxl },
+    borderTopRightRadius: BorderRadius.xxl,
+  },
   bottomSheetContent: { flex: 1 },
   modalHeader: {
     flexDirection: "row",
@@ -971,18 +1030,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.lg,
     borderBottomWidth: 1,
-    borderBottomColor: BankingColors.border },
+    borderBottomColor: BankingColors.border,
+  },
   modalTitle: {
     fontSize: FontSize.lg,
     fontFamily: FontFamily.semibold,
-    color: BankingColors.textPrimary },
+    color: BankingColors.textPrimary,
+  },
   modalCloseButton: {
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm },
+    paddingVertical: Spacing.sm,
+  },
   modalCloseText: {
     fontSize: FontSize.base,
     fontFamily: FontFamily.semibold,
-    color: BankingColors.primary },
+    color: BankingColors.primary,
+  },
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -991,12 +1054,14 @@ const styles = StyleSheet.create({
     marginVertical: Spacing.md,
     paddingHorizontal: Spacing.md,
     borderRadius: BorderRadius.lg,
-    gap: Spacing.sm },
+    gap: Spacing.sm,
+  },
   searchInput: {
     flex: 1,
     paddingVertical: Spacing.md,
     fontSize: FontSize.base,
-    color: BankingColors.textPrimary },
+    color: BankingColors.textPrimary,
+  },
   countryList: { paddingHorizontal: Spacing.xl },
   countryItem: {
     flexDirection: "row",
@@ -1004,15 +1069,19 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.lg,
     paddingHorizontal: Spacing.md,
     borderRadius: BorderRadius.lg,
-    marginBottom: Spacing.xs },
+    marginBottom: Spacing.xs,
+  },
   countryItemSelected: { backgroundColor: BankingColors.primaryLight },
   countryItemFlag: { fontSize: 28, marginRight: Spacing.md },
   countryItemInfo: { flex: 1 },
   countryItemName: {
     fontSize: FontSize.base,
     fontFamily: FontFamily.medium,
-    color: BankingColors.textPrimary },
+    color: BankingColors.textPrimary,
+  },
   countryItemDial: {
     fontSize: FontSize.sm,
     color: BankingColors.textSecondary,
-    marginTop: 2 } });
+    marginTop: 2,
+  },
+});

@@ -341,14 +341,14 @@ jobs:
           PRIVATE_KEY=$(jq -r '.private_key' /tmp/huawei-sa.json)
           TOKEN_URI=$(jq -r '.token_uri' /tmp/huawei-sa.json)
 
-          # Generate JWT
-          HEADER=$(echo -n '{"alg":"RS256","typ":"JWT","kid":"'"$KEY_ID"'"}' | base64 -w 0 | tr '+/' '-_' | tr -d '=')
+          # Generate JWT (PS256 = SHA256withRSA/PSS as required by Huawei)
+          HEADER=$(echo -n '{"alg":"PS256","typ":"JWT","kid":"'"$KEY_ID"'"}' | base64 -w 0 | tr '+/' '-_' | tr -d '=')
           NOW=$(date +%s)
           EXP=$((NOW + 3600))
           PAYLOAD=$(echo -n '{"iss":"'"$SUB_ACCOUNT"'","iat":'"$NOW"',"exp":'"$EXP"',"aud":"'"$TOKEN_URI"'"}' | base64 -w 0 | tr '+/' '-_' | tr -d '=')
 
           echo "$PRIVATE_KEY" > /tmp/huawei-pk.pem
-          SIGNATURE=$(echo -n "${HEADER}.${PAYLOAD}" | openssl dgst -sha256 -sign /tmp/huawei-pk.pem | base64 -w 0 | tr '+/' '-_' | tr -d '=')
+          SIGNATURE=$(echo -n "${HEADER}.${PAYLOAD}" | openssl dgst -sha256 -sign /tmp/huawei-pk.pem -sigopt rsa_padding_mode:pss -sigopt rsa_pss_saltlen:-1 | base64 -w 0 | tr '+/' '-_' | tr -d '=')
           JWT="${HEADER}.${PAYLOAD}.${SIGNATURE}"
 
           # Exchange JWT for access token
@@ -369,8 +369,7 @@ jobs:
           # Get upload URL
           UPLOAD_URL_RESPONSE=$(curl -s -X GET \
             "https://connect-api.cloud.huawei.com/api/publish/v2/upload-url/for-obs?appId=$HUAWEI_APP_ID&suffix=apk" \
-            -H "Authorization: Bearer $ACCESS_TOKEN" \
-            -H "client_id: $SUB_ACCOUNT")
+            -H "Authorization: Bearer $ACCESS_TOKEN")
 
           UPLOAD_AUTH_CODE=$(echo "$UPLOAD_URL_RESPONSE" | jq -r '.authCode')
           UPLOAD_URL=$(echo "$UPLOAD_URL_RESPONSE" | jq -r '.uploadUrl')
@@ -400,7 +399,6 @@ jobs:
           curl -s -X PUT \
             "https://connect-api.cloud.huawei.com/api/publish/v2/app-file-info?appId=$HUAWEI_APP_ID" \
             -H "Authorization: Bearer $ACCESS_TOKEN" \
-            -H "client_id: $SUB_ACCOUNT" \
             -H "Content-Type: application/json" \
             -d '{"fileType": 5, "files": [{"fileName": "app-release.apk", "fileDestUrl": "'"$FILE_DEST_URL"'"}]}'
 

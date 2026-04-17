@@ -3,14 +3,17 @@ import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import {
   BottomSheetModal,
   BottomSheetView,
-  BottomSheetTextInput } from "@gorhom/bottom-sheet";
+  BottomSheetTextInput,
+} from "@gorhom/bottom-sheet";
 import { X, RotateCcw } from "lucide-react-native";
 import TText from "@/components/TText";
-import { BankingColors,
+import {
+  BankingColors,
   Spacing,
   BorderRadius,
   FontSize,
-  FontFamily } from "@/constants";
+  FontFamily,
+} from "@/constants";
 import { useTranslation } from "react-i18next";
 
 interface Props {
@@ -36,7 +39,8 @@ export default function CardTransactionsFilterModal({
   onMinChange,
   onMaxChange,
   onClear,
-  onApply }: Props) {
+  onApply,
+}: Props) {
   const { t } = useTranslation();
 
   const hasAnyTemp = Boolean(
@@ -75,9 +79,7 @@ export default function CardTransactionsFilterModal({
         </View>
 
         <View style={styles.modalBody}>
-          <Text style={styles.sectionTitle}>
-            {t("common.month") || "Mois"}
-          </Text>
+          <Text style={styles.sectionTitle}>{t("common.month") || "Mois"}</Text>
           <View style={styles.chipsContainer}>
             {months.map((m) => {
               const active = selectedMonth === m.key;
@@ -107,6 +109,7 @@ export default function CardTransactionsFilterModal({
                 {t("common.minimum") || "Minimum"}
               </Text>
               <BottomSheetTextInput
+                allowFontScaling={false}
                 style={styles.amountInput}
                 placeholder="0.00"
                 value={minAmount}
@@ -121,6 +124,7 @@ export default function CardTransactionsFilterModal({
                 {t("common.maximum") || "Maximum"}
               </Text>
               <BottomSheetTextInput
+                allowFontScaling={false}
                 style={styles.amountInput}
                 placeholder="0.00"
                 value={maxAmount}
@@ -148,9 +152,7 @@ export default function CardTransactionsFilterModal({
           >
             <RotateCcw
               size={16}
-              color={
-                hasAnyTemp ? BankingColors.text : BankingColors.disabled
-              }
+              color={hasAnyTemp ? BankingColors.text : BankingColors.disabled}
             />
             <Text
               style={[
@@ -184,12 +186,15 @@ const styles = StyleSheet.create({
   sheetBackground: {
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    backgroundColor: BankingColors.surface },
+    backgroundColor: BankingColors.surface,
+  },
   handleIndicator: {
     backgroundColor: BankingColors.borderMedium,
-    width: 40 },
+    width: 40,
+  },
   sheetContent: {
-    paddingBottom: 34 },
+    paddingBottom: 34,
+  },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -198,59 +203,72 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.sm,
     paddingBottom: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: BankingColors.border },
+    borderBottomColor: BankingColors.border,
+  },
   modalTitle: {
     fontSize: FontSize.lg,
     fontFamily: FontFamily.bold,
-    color: BankingColors.text },
+    color: BankingColors.text,
+  },
   closeBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
     backgroundColor: BankingColors.surfaceSecondary,
     justifyContent: "center",
-    alignItems: "center" },
+    alignItems: "center",
+  },
   modalBody: {
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.lg },
+    paddingTop: Spacing.lg,
+  },
   sectionTitle: {
     fontSize: FontSize.base,
     fontFamily: FontFamily.semibold,
     color: BankingColors.text,
-    marginBottom: Spacing.md },
+    marginBottom: Spacing.md,
+  },
   chipsContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: Spacing.sm,
-    marginBottom: Spacing.xl },
+    marginBottom: Spacing.xl,
+  },
   chip: {
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.sm + 2,
     borderRadius: BorderRadius.full,
     backgroundColor: BankingColors.surface,
     borderWidth: 1,
-    borderColor: BankingColors.border },
+    borderColor: BankingColors.border,
+  },
   chipActive: {
     backgroundColor: BankingColors.primary,
-    borderColor: BankingColors.primary },
+    borderColor: BankingColors.primary,
+  },
   chipText: {
     fontSize: FontSize.sm,
     fontFamily: FontFamily.medium,
-    color: BankingColors.textSecondary },
+    color: BankingColors.textSecondary,
+  },
   chipTextActive: {
     color: BankingColors.white,
-    fontFamily: FontFamily.semibold },
+    fontFamily: FontFamily.semibold,
+  },
   dateRangeContainer: {
     flexDirection: "row",
     gap: Spacing.md,
-    marginBottom: Spacing.lg },
+    marginBottom: Spacing.lg,
+  },
   dateInputContainer: {
-    flex: 1 },
+    flex: 1,
+  },
   dateInputLabel: {
     fontSize: FontSize.sm,
     fontFamily: FontFamily.medium,
     color: BankingColors.textLabel,
-    marginBottom: Spacing.sm },
+    marginBottom: Spacing.sm,
+  },
   amountInput: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
@@ -259,12 +277,14 @@ const styles = StyleSheet.create({
     borderColor: BankingColors.border,
     backgroundColor: BankingColors.surface,
     fontSize: FontSize.sm,
-    color: BankingColors.text },
+    color: BankingColors.text,
+  },
   modalFooter: {
     flexDirection: "row",
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.lg,
-    gap: Spacing.md },
+    gap: Spacing.md,
+  },
   clearButton: {
     flex: 1,
     flexDirection: "row",
@@ -275,23 +295,30 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     borderWidth: 1,
     borderColor: BankingColors.border,
-    backgroundColor: BankingColors.surface },
+    backgroundColor: BankingColors.surface,
+  },
   clearButtonDisabled: {
-    opacity: 0.5 },
+    opacity: 0.5,
+  },
   clearButtonText: {
     fontSize: FontSize.base,
     fontFamily: FontFamily.semibold,
-    color: BankingColors.text },
+    color: BankingColors.text,
+  },
   clearButtonTextDisabled: {
-    color: BankingColors.disabled },
+    color: BankingColors.disabled,
+  },
   applyButton: {
     flex: 1,
     paddingVertical: Spacing.md + 2,
     borderRadius: BorderRadius.lg,
     backgroundColor: BankingColors.text,
     alignItems: "center",
-    justifyContent: "center" },
+    justifyContent: "center",
+  },
   applyButtonText: {
     fontSize: FontSize.base,
     fontFamily: FontFamily.semibold,
-    color: BankingColors.white } });
+    color: BankingColors.white,
+  },
+});

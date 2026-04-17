@@ -1,9 +1,19 @@
 // index.js
 import "expo-router/entry";
 
-import { getMessaging, setBackgroundMessageHandler } from "@react-native-firebase/messaging";
+import {
+  getMessaging,
+  setBackgroundMessageHandler,
+} from "@react-native-firebase/messaging";
 import * as Notifications from "expo-notifications";
-import { Platform } from "react-native";
+import { Platform, Text, TextInput } from "react-native";
+
+// Disable font scaling globally to prevent large system font sizes from breaking layout
+if (Text.defaultProps == null) Text.defaultProps = {};
+Text.defaultProps.allowFontScaling = false;
+
+if (TextInput.defaultProps == null) TextInput.defaultProps = {};
+TextInput.defaultProps.allowFontScaling = false;
 
 const APP_SCHEME = "attijariup";
 const ANDROID_CHANNEL_ID = "default";
@@ -32,7 +42,9 @@ function logBlock(title, payload) {
   console.log("====================================");
   console.log(title);
   if (payload !== undefined) {
-    console.log(typeof payload === "string" ? payload : JSON.stringify(payload, null, 2));
+    console.log(
+      typeof payload === "string" ? payload : JSON.stringify(payload, null, 2),
+    );
   }
   console.log("====================================");
 }
@@ -91,12 +103,18 @@ function buildDeepLinkFromData(data) {
       p === null ||
       p === undefined ||
       (typeof p === "string" &&
-        (p.trim() === "" || p.trim().toLowerCase() === "null" || p.trim().toLowerCase() === "undefined"));
+        (p.trim() === "" ||
+          p.trim().toLowerCase() === "null" ||
+          p.trim().toLowerCase() === "undefined"));
 
     if (isEmptyParam) return `${APP_SCHEME}:///${cleanScreen}`;
 
     // optional: you can add query params instead of path segment, but keep it simple for now
-    if (typeof p === "string" || typeof p === "number" || typeof p === "boolean") {
+    if (
+      typeof p === "string" ||
+      typeof p === "number" ||
+      typeof p === "boolean"
+    ) {
       return `${APP_SCHEME}:///${cleanScreen}?p=${encodeURIComponent(String(p))}`;
     }
 
@@ -116,8 +134,12 @@ function buildDeepLinkFromData(data) {
 async function scheduleLocalNotificationFromRemote(remoteMessage) {
   await ensureAndroidChannel();
 
-  const title = remoteMessage?.notification?.title ?? remoteMessage?.data?.title ?? "New message";
-  const body = remoteMessage?.notification?.body ?? remoteMessage?.data?.body ?? "";
+  const title =
+    remoteMessage?.notification?.title ??
+    remoteMessage?.data?.title ??
+    "New message";
+  const body =
+    remoteMessage?.notification?.body ?? remoteMessage?.data?.body ?? "";
   const data = remoteMessage?.data ?? {};
 
   const deepLink = buildDeepLinkFromData(data);
