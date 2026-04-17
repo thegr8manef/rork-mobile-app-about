@@ -35,6 +35,14 @@ on:
         options:
           - development
           - production
+      distribution:
+        description: "Distribution target"
+        required: true
+        default: firebase
+        type: choice
+        options:
+          - firebase
+          - google-play
       build_type:
         description: "Android build output"
         required: true
@@ -251,6 +259,8 @@ jobs:
           ./gradlew generateCodegenArtifactsFromSchema --no-daemon
 
       # ── Build ───────────────────────────────────────────
+      # Firebase builds use previewRelease → includes Chucker for network inspection
+      # Google Play builds use release → Chucker no-op (clean production build)
       - name: Build Android
         id: build
         run: |
@@ -258,22 +268,20 @@ jobs:
 
           BUILD_TYPE="${{ github.event.inputs.build_type || 'apk' }}"
           ENV_LABEL="${{ env.NODE_ENV }}"
+          DISTRIBUTION="${{ github.event.inputs.distribution || 'firebase' }}"
 
-          if [ "$ENV_LABEL" = "production" ] && [ "$BUILD_TYPE" = "aab" ]; then
-            # Production AAB for Google Play
+          if [ "$DISTRIBUTION" = "google-play" ]; then
+            # Google Play AAB (NO Chucker, minified, R8)
             ./gradlew bundleRelease --no-daemon
             echo "artifact_path=android/app/build/outputs/bundle/release/app-release.aab" >> $GITHUB_OUTPUT
-            echo "artifact_name=nessnaUp-${{ env.APP_VERSION }}-production.aab" >> $GITHUB_OUTPUT
-          elif [ "$ENV_LABEL" = "production" ]; then
-            # Production APK
-            ./gradlew assembleRelease --no-daemon
-            echo "artifact_path=android/app/build/outputs/apk/release/app-release.apk" >> $GITHUB_OUTPUT
-            echo "artifact_name=nessnaUp-${{ env.APP_VERSION }}-production.apk" >> $GITHUB_OUTPUT
+            echo "artifact_name=nessnaUp-${{ env.APP_VERSION }}-googleplay.aab" >> $GITHUB_OUTPUT
+            echo "distribution=google-play" >> $GITHUB_OUTPUT
           else
-            # Development / Preview APK
+            # Firebase APK (WITH Chucker for network debugging)
             ./gradlew assemblePreviewRelease --no-daemon
             echo "artifact_path=android/app/build/outputs/apk/previewRelease/app-previewRelease.apk" >> $GITHUB_OUTPUT
-            echo "artifact_name=nessnaUp-${{ env.APP_VERSION }}-development.apk" >> $GITHUB_OUTPUT
+            echo "artifact_name=nessnaUp-${{ env.APP_VERSION }}-${ENV_LABEL}-firebase.apk" >> $GITHUB_OUTPUT
+            echo "distribution=firebase" >> $GITHUB_OUTPUT
           fi
 
           echo "env_label=$ENV_LABEL" >> $GITHUB_OUTPUT
@@ -286,9 +294,9 @@ jobs:
           path: ${{ steps.build.outputs.artifact_path }}
           retention-days: 30
 
-      # ── Distribution: Firebase (development) ────────────
+      # ── Distribution: Firebase App Distribution ─────────
       - name: Firebase App Distribution
-        if: env.NODE_ENV == 'development'
+        if: steps.build.outputs.distribution == 'firebase'
         uses: wzieba/Firebase-Distribution-Github-Action@v1
         with:
           appId: ${{ secrets.FIREBASE_APP_ID }}
@@ -296,37 +304,24 @@ jobs:
           groups: internal-testers-nessnaUp
           file: ${{ steps.build.outputs.artifact_path }}
           releaseNotes: |
-            🚀 NessnaUp ${{ env.APP_VERSION }} (dev)
+            🚀 NessnaUp ${{ env.APP_VERSION }} (${{ env.NODE_ENV }})
             Commit: ${{ github.sha }}
             Branch: ${{ github.ref_name }}
 
-      # ── Distribution: Google Play (production) ──────────
+      # ── Distribution: Google Play ───────────────────────
       # Closed testing track "app-test" with "Digital Center" tester group
-      # # (tester list configured in Google Play Console → Closed testing → Manage track → Testers)
-      # - name: Google Play — closed testing (Digital Center)
-      #   if: env.NODE_ENV == 'production'
-      #   uses: r0adkll/upload-google-play@v1
-      #   with:
-      #     serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
-      #     packageName: tn.attijariup.plus
-      #     releaseFiles: ${{ steps.build.outputs.artifact_path }}
-      #     track: app-test
-      #     status: completed
-      #     releaseName: "nessnaUp-${{ env.APP_VERSION }}"
-      #     changesNotSentForReview: true
-
-      # ── Also push production to Firebase for QA ─────────
-      # - name: Firebase App Distribution (production QA)
-      #   if: env.NODE_ENV == 'production'
-      #   uses: wzieba/Firebase-Distribution-Github-Action@v1
-      #   with:
-      #     appId: ${{ secrets.FIREBASE_APP_ID }}
-      #     token: ${{ secrets.FIREBASE_TOKEN }}
-      #     groups: internal-testers-nessnaUp
-      #     file: ${{ steps.build.outputs.artifact_path }}
-      #     releaseNotes: |
-      #       🚀 NessnaUp ${{ env.APP_VERSION }} (production)
-      #       Commit: ${{ github.sha }}
+      # (tester list configured in Google Play Console → Closed testing → Manage track → Testers)
+      - name: Google Play — closed testing (Digital Center)
+        if: steps.build.outputs.distribution == 'google-play'
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: tn.attijariup.plus
+          releaseFiles: ${{ steps.build.outputs.artifact_path }}
+          track: app-test
+          status: completed
+          releaseName: "nessnaUp-${{ env.APP_VERSION }}"
+          changesNotSentForReview: true
 
       # ── Cleanup keystore ────────────────────────────────
       - name: Remove keystore
