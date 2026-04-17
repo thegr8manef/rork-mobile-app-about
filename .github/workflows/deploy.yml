@@ -21,10 +21,6 @@
 name: "NessnaUp — Build & Distribute"
 
 on:
-  push:
-    branches:
-      - main
-
   workflow_dispatch:
     inputs:
       environment:
@@ -43,6 +39,7 @@ on:
         options:
           - firebase
           - google-play
+          - huawei-appgallery
       build_type:
         description: "Android build output"
         required: true
@@ -276,6 +273,12 @@ jobs:
             echo "artifact_path=android/app/build/outputs/bundle/release/app-release.aab" >> $GITHUB_OUTPUT
             echo "artifact_name=nessnaUp-${{ env.APP_VERSION }}-googleplay.aab" >> $GITHUB_OUTPUT
             echo "distribution=google-play" >> $GITHUB_OUTPUT
+          elif [ "$DISTRIBUTION" = "huawei-appgallery" ]; then
+            # Huawei AppGallery APK (NO Chucker, minified, R8)
+            ./gradlew assembleRelease --no-daemon
+            echo "artifact_path=android/app/build/outputs/apk/release/app-release.apk" >> $GITHUB_OUTPUT
+            echo "artifact_name=nessnaUp-${{ env.APP_VERSION }}-huawei.apk" >> $GITHUB_OUTPUT
+            echo "distribution=huawei-appgallery" >> $GITHUB_OUTPUT
           else
             # Firebase APK (WITH Chucker for network debugging)
             ./gradlew assemblePreviewRelease --no-daemon
@@ -322,6 +325,89 @@ jobs:
           status: completed
           releaseName: "nessnaUp-${{ env.APP_VERSION }}"
           changesNotSentForReview: true
+
+      # ── Distribution: Huawei AppGallery ─────────────────
+      # Required secrets: HUAWEI_SERVICE_ACCOUNT_JSON (base64-encoded), HUAWEI_APP_ID
+      # Uses JWT service account auth (not deprecated API client)
+      - name: Huawei AppGallery — internal testing
+        if: steps.build.outputs.distribution == 'huawei-appgallery'
+        run: |
+          # Decode service account JSON
+          echo "${{ secrets.HUAWEI_SERVICE_ACCOUNT_JSON }}" | base64 -d > /tmp/huawei-sa.json
+
+          # Extract fields from JSON
+          KEY_ID=$(jq -r '.key_id' /tmp/huawei-sa.json)
+          SUB_ACCOUNT=$(jq -r '.sub_account' /tmp/huawei-sa.json)
+          PRIVATE_KEY=$(jq -r '.private_key' /tmp/huawei-sa.json)
+          TOKEN_URI=$(jq -r '.token_uri' /tmp/huawei-sa.json)
+
+          # Generate JWT
+          HEADER=$(echo -n '{"alg":"RS256","typ":"JWT","kid":"'"$KEY_ID"'"}' | base64 -w 0 | tr '+/' '-_' | tr -d '=')
+          NOW=$(date +%s)
+          EXP=$((NOW + 3600))
+          PAYLOAD=$(echo -n '{"iss":"'"$SUB_ACCOUNT"'","iat":'"$NOW"',"exp":'"$EXP"',"aud":"'"$TOKEN_URI"'"}' | base64 -w 0 | tr '+/' '-_' | tr -d '=')
+
+          echo "$PRIVATE_KEY" > /tmp/huawei-pk.pem
+          SIGNATURE=$(echo -n "${HEADER}.${PAYLOAD}" | openssl dgst -sha256 -sign /tmp/huawei-pk.pem | base64 -w 0 | tr '+/' '-_' | tr -d '=')
+          JWT="${HEADER}.${PAYLOAD}.${SIGNATURE}"
+
+          # Exchange JWT for access token
+          TOKEN_RESPONSE=$(curl -s -X POST "$TOKEN_URI" \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -d "grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=$JWT")
+          ACCESS_TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.access_token')
+
+          if [ "$ACCESS_TOKEN" = "null" ] || [ -z "$ACCESS_TOKEN" ]; then
+            echo "❌ Failed to get access token"
+            echo "$TOKEN_RESPONSE"
+            exit 1
+          fi
+
+          HUAWEI_APP_ID="${{ secrets.HUAWEI_APP_ID }}"
+          APK_PATH="${{ steps.build.outputs.artifact_path }}"
+
+          # Get upload URL
+          UPLOAD_URL_RESPONSE=$(curl -s -X GET \
+            "https://connect-api.cloud.huawei.com/api/publish/v2/upload-url/for-obs?appId=$HUAWEI_APP_ID&suffix=apk" \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "client_id: $SUB_ACCOUNT")
+
+          UPLOAD_AUTH_CODE=$(echo "$UPLOAD_URL_RESPONSE" | jq -r '.authCode')
+          UPLOAD_URL=$(echo "$UPLOAD_URL_RESPONSE" | jq -r '.uploadUrl')
+
+          if [ "$UPLOAD_URL" = "null" ] || [ -z "$UPLOAD_URL" ]; then
+            echo "❌ Failed to get upload URL"
+            echo "$UPLOAD_URL_RESPONSE"
+            exit 1
+          fi
+
+          # Upload APK
+          UPLOAD_RESPONSE=$(curl -s -X POST "$UPLOAD_URL" \
+            -H "Accept: application/json" \
+            -F "file=@$APK_PATH" \
+            -F "authCode=$UPLOAD_AUTH_CODE" \
+            -F "fileCount=1")
+
+          FILE_DEST_URL=$(echo "$UPLOAD_RESPONSE" | jq -r '.result.UploadFileRsp.fileInfoList[0].fileDestUlr')
+
+          if [ "$FILE_DEST_URL" = "null" ] || [ -z "$FILE_DEST_URL" ]; then
+            echo "❌ Failed to upload APK"
+            echo "$UPLOAD_RESPONSE"
+            exit 1
+          fi
+
+          # Update app file info
+          curl -s -X PUT \
+            "https://connect-api.cloud.huawei.com/api/publish/v2/app-file-info?appId=$HUAWEI_APP_ID" \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "client_id: $SUB_ACCOUNT" \
+            -H "Content-Type: application/json" \
+            -d '{"fileType": 5, "files": [{"fileName": "app-release.apk", "fileDestUrl": "'"$FILE_DEST_URL"'"}]}'
+
+          echo "✅ APK uploaded to Huawei AppGallery (draft — assign to internal testing in console)"
+
+          # Cleanup
+          rm -f /tmp/huawei-sa.json /tmp/huawei-pk.pem
 
       # ── Cleanup keystore ────────────────────────────────
       - name: Remove keystore

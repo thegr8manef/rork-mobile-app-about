@@ -167,6 +167,9 @@ dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
 
+    // Huawei AppGallery Connect SDK
+    implementation 'com.huawei.agconnect:agconnect-core:1.5.2.300'
+
     // ✅ Chucker: real in debug + previewRelease, NO-OP in release
     debugImplementation "com.github.chuckerteam.chucker:library:3.5.2"
     previewReleaseImplementation "com.github.chuckerteam.chucker:library:3.5.2"
@@ -198,3 +201,4 @@ dependencies {
 }
 
 apply plugin: "com.google.gms.google-services"
+apply plugin: 'com.huawei.agconnect'

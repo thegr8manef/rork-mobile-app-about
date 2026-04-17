@@ -218,7 +218,7 @@ If you plan to distribute production builds to Google Play, you'll also need:
 
 ### `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`
 
-**Used in:** `deploy.yml` (Google Play upload step — currently commented out)
+**Used in:** `deploy.yml` (Google Play upload step)
 **Purpose:** Service account JSON key for authenticating with Google Play Developer API to upload AABs.
 
 **How to get it:**
@@ -239,19 +239,94 @@ If you plan to distribute production builds to Google Play, you'll also need:
 
 ---
 
+## Huawei AppGallery (for Huawei distribution)
+
+If you plan to distribute builds to Huawei AppGallery, you'll need the following secrets:
+
+### `HUAWEI_SERVICE_ACCOUNT_JSON`
+
+**Used in:** `deploy.yml` (Huawei AppGallery upload step)
+**Purpose:** Base64-encoded JSON key file from Huawei AppGallery Connect Service Account, used for JWT authentication with the Publishing API.
+
+> Warning: **Use Service Accounts, not API Clients.** Huawei has deprecated API clients. Service Accounts use JWT-based authentication which is more secure.
+
+**How to get it:**
+
+1. Go to [Huawei AppGallery Connect](https://developer.huawei.com/consumer/en/service/josp/agc/index.html).
+2. Sign in with your Huawei Developer account.
+3. Navigate to **Users and permissions** (left sidebar) -> **API key** tab.
+4. Click the **Service Accounts** section.
+5. Click **Create** to create a new Service Account:
+   - **Name**: e.g. `github-actions-deploy`
+   - **Type**: Select **Developer-level** (required for app management APIs / uploading APKs)
+   - **Roles**: Select **App administrator**
+6. Click **OK** / **Confirm**.
+7. Your Service Account appears in the table:
+   - **ID**: numeric (e.g. `117449353`) - maps to `sub_account` in JSON
+   - **Key ID**: hex string
+8. Click **Create Key** in the **Operation** column - a JSON key file downloads automatically.
+9. The JSON file contains: `key_id`, `private_key`, `sub_account`, `token_uri`, etc.
+10. Encode the JSON file to base64:
+    ```bash
+    base64 -w 0 your-downloaded-key.json
+    ```
+    On macOS:
+    ```bash
+    base64 -i your-downloaded-key.json
+    ```
+11. Copy the output and save it as the `HUAWEI_SERVICE_ACCOUNT_JSON` secret in GitHub.
+
+> Warning: The JSON file contains a private key. Never commit it. If compromised, delete and recreate in AppGallery Connect.
+
+---
+
+### `HUAWEI_APP_ID`
+
+**Used in:** `deploy.yml` (Huawei AppGallery upload step)
+**Purpose:** The App ID that identifies your app in Huawei AppGallery.
+
+**How to get it:**
+
+1. Go to [Huawei AppGallery Connect](https://developer.huawei.com/consumer/en/service/josp/agc/index.html).
+2. Click on **My apps** (left sidebar).
+3. If your app **already exists**, select it and go to **App information** tab → copy the **App ID** (numeric value).
+4. If your app is **not in the list**, you need to create it first (see below).
+
+#### Creating a New App in Huawei AppGallery Connect
+
+1. In AppGallery Connect, click **My apps** (left sidebar).
+2. Click **New app** (top-right button).
+3. Fill in the required fields:
+   - **Platform**: Select **Android**
+   - **Device**: Select **Mobile phone**
+   - **App name**: Enter `NesnaUp` (or your app's display name)
+   - **App package name**: Select **Manually enter the package name**, then enter `tn.attijariup.plus`
+   - **App category**: Select the appropriate category (e.g. **Finance**)
+   - **Default language**: Select your primary language (e.g. **French** or **Arabic**)
+4. Click **OK** / **Create**.
+5. You'll be redirected to the app's **App information** page.
+6. Copy the **App ID** (numeric value at the top of the page).
+7. Save it as the `HUAWEI_APP_ID` secret in GitHub.
+
+> **Note:** After creating the app, you still need to complete the app information (description, screenshots, etc.) on AppGallery Connect before you can publish. However, the App ID is available immediately for CI/CD uploads.
+
+---
+
 ## Quick Setup Checklist
 
-| Secret                             | Source                               | Required For      |
-| ---------------------------------- | ------------------------------------ | ----------------- |
-| `ENV_PRODUCTION_FILE`              | Your `.env.production` file (base64) | Build & Deploy    |
-| `EXPO_TOKEN`                       | Expo dashboard                       | EAS builds        |
-| `FIREBASE_APP_ID`                  | Firebase Console → Project Settings  | Dev distribution  |
-| `FIREBASE_TOKEN`                   | `firebase login:ci`                  | Dev distribution  |
-| `GITLAB_ACCESS_TOKEN`              | GitLab → Access Tokens               | GitLab API access |
-| `GITLAB_SSH_PRIVATE_KEY`           | `ssh-keygen` (private key)           | GitLab sync       |
-| `KEYSTORE_BASE64`                  | Your `.jks` file (base64)            | Android signing   |
-| `MYAPP_UPLOAD_KEY_ALIAS`           | Keystore alias                       | Android signing   |
-| `MYAPP_UPLOAD_KEY_PASSWORD`        | Keystore key password                | Android signing   |
-| `MYAPP_UPLOAD_STORE_PASSWORD`      | Keystore store password              | Android signing   |
-| `VERSIONING_TOKEN`                 | GitHub PAT (fine-grained)            | Auto version bump |
-| `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` | Google Cloud Console (JSON key)      | Play Store upload |
+| Secret                             | Source                                | Required For        |
+| ---------------------------------- | ------------------------------------- | ------------------- |
+| `ENV_PRODUCTION_FILE`              | Your `.env.production` file (base64)  | Build & Deploy      |
+| `EXPO_TOKEN`                       | Expo dashboard                        | EAS builds          |
+| `FIREBASE_APP_ID`                  | Firebase Console → Project Settings   | Dev distribution    |
+| `FIREBASE_TOKEN`                   | `firebase login:ci`                   | Dev distribution    |
+| `GITLAB_ACCESS_TOKEN`              | GitLab → Access Tokens                | GitLab API access   |
+| `GITLAB_SSH_PRIVATE_KEY`           | `ssh-keygen` (private key)            | GitLab sync         |
+| `KEYSTORE_BASE64`                  | Your `.jks` file (base64)             | Android signing     |
+| `MYAPP_UPLOAD_KEY_ALIAS`           | Keystore alias                        | Android signing     |
+| `MYAPP_UPLOAD_KEY_PASSWORD`        | Keystore key password                 | Android signing     |
+| `MYAPP_UPLOAD_STORE_PASSWORD`      | Keystore store password               | Android signing     |
+| `VERSIONING_TOKEN`                 | GitHub PAT (fine-grained)             | Auto version bump   |
+| `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` | Google Cloud Console (JSON key)       | Play Store upload   |
+| `HUAWEI_SERVICE_ACCOUNT_JSON`      | AppGallery Connect → API key (base64) | Huawei distribution |
+| `HUAWEI_APP_ID`                    | AppGallery Connect → App information  | Huawei distribution |
