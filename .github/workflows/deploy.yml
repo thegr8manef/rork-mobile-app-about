@@ -161,6 +161,21 @@ jobs:
         with:
           ref: ${{ github.ref }}
 
+      # ── Free disk space (prevent ENOSPC) ─────────────────
+      - name: Free disk space
+        run: |
+          echo "=== Disk usage BEFORE cleanup ==="
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android/sdk/ndk/25* /usr/local/lib/android/sdk/ndk/26* \
+            /opt/ghc /usr/local/share/boost /usr/share/swift \
+            /usr/local/lib/android/sdk/build-tools/33* /usr/local/lib/android/sdk/build-tools/34* \
+            /usr/local/lib/android/sdk/platforms/android-3[0-4] \
+            /usr/local/lib/android/sdk/system-images || true
+          docker image prune -af || true
+          sudo apt-get clean || true
+          echo "=== Disk usage AFTER cleanup ==="
+          df -h /
+
       # Pull the version-bump commit if it was made
       - name: Pull latest (after version bump)
         run: git pull --rebase origin ${{ github.ref_name }} || true
@@ -253,7 +268,7 @@ jobs:
       - name: Generate codegen artifacts
         run: |
           cd android
-          ./gradlew generateCodegenArtifactsFromSchema --no-daemon
+          ./gradlew generateCodegenArtifactsFromSchema --no-daemon -PreactNativeArchitectures=armeabi-v7a,arm64-v8a
 
       # ── Build ───────────────────────────────────────────
       # Firebase builds use previewRelease → includes Chucker for network inspection
@@ -269,19 +284,19 @@ jobs:
 
           if [ "$DISTRIBUTION" = "google-play" ]; then
             # Google Play AAB (NO Chucker, minified, R8)
-            ./gradlew bundleRelease --no-daemon
+            ./gradlew bundleRelease --no-daemon -PreactNativeArchitectures=armeabi-v7a,arm64-v8a
             echo "artifact_path=android/app/build/outputs/bundle/release/app-release.aab" >> $GITHUB_OUTPUT
             echo "artifact_name=nessnaUp-${{ env.APP_VERSION }}-googleplay.aab" >> $GITHUB_OUTPUT
             echo "distribution=google-play" >> $GITHUB_OUTPUT
           elif [ "$DISTRIBUTION" = "huawei-appgallery" ]; then
             # Huawei AppGallery APK (NO Chucker, minified, R8)
-            ./gradlew assembleRelease --no-daemon
+            ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=armeabi-v7a,arm64-v8a
             echo "artifact_path=android/app/build/outputs/apk/release/app-release.apk" >> $GITHUB_OUTPUT
             echo "artifact_name=nessnaUp-${{ env.APP_VERSION }}-huawei.apk" >> $GITHUB_OUTPUT
             echo "distribution=huawei-appgallery" >> $GITHUB_OUTPUT
           else
             # Firebase APK (WITH Chucker for network debugging)
-            ./gradlew assemblePreviewRelease --no-daemon
+            ./gradlew assemblePreviewRelease --no-daemon -PreactNativeArchitectures=armeabi-v7a,arm64-v8a
             echo "artifact_path=android/app/build/outputs/apk/previewRelease/app-previewRelease.apk" >> $GITHUB_OUTPUT
             echo "artifact_name=nessnaUp-${{ env.APP_VERSION }}-${ENV_LABEL}-firebase.apk" >> $GITHUB_OUTPUT
             echo "distribution=firebase" >> $GITHUB_OUTPUT
